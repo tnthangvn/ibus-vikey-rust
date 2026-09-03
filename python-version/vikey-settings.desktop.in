@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=ViKey
+Name[vi]=Cài đặt ViKey
+Comment=Vietnamese input method settings (Telex)
+Comment[vi]=Cài đặt bộ gõ tiếng Việt ViKey: tuỳ chọn, gõ tắt
+Exec=@PYTHON@ @PREFIX@/main.py --setup
+Icon=@PREFIX@/icons/vikey.svg
+Terminal=false
+Type=Application
+Categories=Settings;Utility;
+Keywords=vietnamese;telex;ibus;unikey;go tieng viet;vikey;
+StartupNotify=true

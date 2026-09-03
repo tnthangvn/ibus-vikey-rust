@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component>
+  <name>org.freedesktop.IBus.ViKey</name>
+  <description>ViKey - Bộ gõ tiếng Việt (Telex/VNI), viết bằng Rust</description>
+  <exec>@PREFIX@/vikey-engine --ibus</exec>
+  <version>2.0.0</version>
+  <author>ViKey</author>
+  <license>GPL-3.0</license>
+  <homepage>https://github.com/</homepage>
+  <textdomain>ibus-vikey</textdomain>
+  <engines>
+    <engine>
+      <name>vikey</name>
+      <language>vi</language>
+      <license>GPL-3.0</license>
+      <author>ViKey</author>
+      <icon>@PREFIX@/icons/vikey.svg</icon>
+      <layout>default</layout>
+      <longname>Tiếng Việt (ViKey)</longname>
+      <description>Bộ gõ tiếng Việt Telex/VNI - không duplicate text, dùng được trong terminal</description>
+      <rank>99</rank>
+      <symbol>Vi</symbol>
+      <setup>@PREFIX@/vikey-engine --setup</setup>
+    </engine>
+  </engines>
+</component>

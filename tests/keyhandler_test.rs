@@ -1,0 +1,285 @@
+// Port các unit test của keyhandler Python: mô phỏng ứng dụng + IBus để phát hiện duplicate.
+use vikey_engine::config::Config;
+use vikey_engine::keyhandler::*;
+
+struct FakeApp {
+    h: KeyHandler,
+    text: String,
+    preedit: String,
+}
+
+const KEY_SHIFT_L: u32 = 0xFFE1;
+const KEY_CONTROL_L: u32 = 0xFFE3;
+
+impl FakeApp {
+    fn new(f: impl FnOnce(&mut Config)) -> FakeApp {
+        let mut cfg = Config::default();
+        f(&mut cfg);
+        let mut h = KeyHandler::new(&cfg);
+        h.macros.table = [
+            ("vn", "Việt Nam"), ("hn", "Hà Nội"), ("ko", "không"), ("email", "ten@gmail.com"),
+        ]
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+        FakeApp { h, text: String::new(), preedit: String::new() }
+    }
+
+    fn key(&mut self, keyval: u32, state: u32, ch: char) -> HandleResult {
+        let r = self.h.handle(keyval, state, ch);
+        if r.delete > 0 {
+            self.preedit.clear();
+            let n: usize = self.text.chars().count() - r.delete;
+            self.text = self.text.chars().take(n).collect();
+        }
+        if let Some(c) = &r.commit {
+            self.preedit.clear();
+            self.text.push_str(c);
+        }
+        if let Some(p) = &r.preedit {
+            self.preedit = p.clone();
+        }
+        if !r.handled && state & RELEASE_MASK == 0 {
+            if keyval == KEY_RETURN {
+                self.text.push('\n');
+            } else if keyval == KEY_BACKSPACE {
+                self.text.pop();
+            } else if ch != '\0' && ch as u32 >= 0x20 && state & CONTROL_MASK == 0 {
+                self.text.push(ch);
+            }
+        }
+        r
+    }
+
+    fn type_str(&mut self, s: &str) {
+        for c in s.chars() {
+            if c == '\n' {
+                self.key(KEY_RETURN, 0, '\0');
+            } else {
+                let st = if c.is_ascii_uppercase() { SHIFT_MASK } else { 0 };
+                self.key(c as u32, st, c);
+            }
+        }
+    }
+
+    fn focus_out(&mut self) {
+        // IBus (preedit COMMIT) tự commit preedit, rồi engine.clear()
+        let p = std::mem::take(&mut self.preedit);
+        self.text.push_str(&p);
+        self.h.clear();
+    }
+}
+
+#[test]
+fn sentence_and_terminal() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("Tieesng Vieejt raats hay.\n");
+    assert_eq!(app.text, "Tiếng Việt rất hay.\n");
+    assert_eq!(app.preedit, "");
+    app.text.clear();
+    app.type_str("sudo apt install git\nls -la /home\n");
+    assert_eq!(app.text, "sudo apt install git\nls -la /home\n");
+}
+
+#[test]
+fn backspace_in_and_out_of_word() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("vieets");
+    assert_eq!(app.preedit, "viết");
+    app.key(KEY_BACKSPACE, 0, '\0');
+    assert_eq!(app.preedit, "viêt");
+    app.type_str(" ");
+    assert_eq!(app.text, "viêt ");
+    let r = app.key(KEY_BACKSPACE, 0, '\0');
+    assert!(!r.handled);
+    assert_eq!(app.text, "viêt");
+}
+
+#[test]
+fn focus_out_no_duplicate() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("xin chaof");
+    assert_eq!(app.text, "xin ");
+    assert_eq!(app.preedit, "chào");
+    app.focus_out();
+    assert_eq!(app.text, "xin chào");
+    app.type_str(" banj");
+    app.focus_out();
+    assert_eq!(app.text, "xin chào bạn");
+}
+
+#[test]
+fn escape_and_ctrl() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("abc");
+    let r = app.key(KEY_ESCAPE, 0, '\0');
+    assert!(!r.handled);
+    assert_eq!(r.commit.as_deref(), Some("abc"));
+    app.type_str("xyz");
+    let r = app.key('c' as u32, CONTROL_MASK, 'c');
+    assert!(!r.handled);
+    assert_eq!(app.text, "abcxyz");
+}
+
+#[test]
+fn ctrl_shift_toggle() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("vieet");
+    app.key(KEY_CONTROL_L, 0, '\0');
+    app.key(KEY_SHIFT_L, CONTROL_MASK, '\0');
+    app.key(KEY_SHIFT_L, CONTROL_MASK | SHIFT_MASK | RELEASE_MASK, '\0');
+    app.key(KEY_CONTROL_L, CONTROL_MASK | RELEASE_MASK, '\0');
+    assert!(!app.h.enabled);
+    assert_eq!(app.text, "viêt");
+    app.type_str(" vieets");
+    assert_eq!(app.text, "viêt vieets");
+    app.key(KEY_SHIFT_L, 0, '\0');
+    app.key(KEY_CONTROL_L, SHIFT_MASK, '\0');
+    app.key(KEY_CONTROL_L, SHIFT_MASK | CONTROL_MASK | RELEASE_MASK, '\0');
+    assert!(app.h.enabled);
+    app.type_str(" vieets ");
+    assert_eq!(app.text, "viêt vieets viết ");
+}
+
+#[test]
+fn ctrl_shift_with_other_key_does_not_toggle() {
+    let mut app = FakeApp::new(|_| {});
+    app.key(KEY_CONTROL_L, 0, '\0');
+    app.key(KEY_SHIFT_L, CONTROL_MASK, '\0');
+    app.key('C' as u32, CONTROL_MASK | SHIFT_MASK, 'C');
+    app.key('C' as u32, CONTROL_MASK | SHIFT_MASK | RELEASE_MASK, 'C');
+    app.key(KEY_SHIFT_L, CONTROL_MASK | SHIFT_MASK | RELEASE_MASK, '\0');
+    app.key(KEY_CONTROL_L, CONTROL_MASK | RELEASE_MASK, '\0');
+    assert!(app.h.enabled);
+}
+
+#[test]
+fn punctuation_and_digits() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("chaof, banj! 123 a1b\n");
+    assert_eq!(app.text, "chào, bạn! 123 a1b\n");
+}
+
+#[test]
+fn direct_mode() {
+    let mut app = FakeApp::new(|c| c.direct_mode = true);
+    app.type_str("Tieesng Vieejt raats hay.\n");
+    assert_eq!(app.text, "Tiếng Việt rất hay.\n");
+    assert_eq!(app.preedit, "");
+    app.text.clear();
+    app.type_str("nguowif");
+    assert_eq!(app.text, "người");
+    app.key(KEY_BACKSPACE, 0, '\0');
+    assert_eq!(app.text, "ngươi");
+    app.key(KEY_BACKSPACE, 0, '\0');
+    assert_eq!(app.text, "ngươ");
+    app.key(KEY_BACKSPACE, 0, '\0');
+    assert_eq!(app.text, "nguo");
+    app.type_str(" tools status\n");
+    assert_eq!(app.text, "nguo tools status\n");
+}
+
+#[test]
+fn vni_and_both() {
+    let mut app = FakeApp::new(|c| c.method = "vni".into());
+    app.type_str("Tie61ng Vie65t 123 a1 x2\n");
+    assert_eq!(app.text, "Tiếng Việt 123 á x2\n");
+    app.text.clear();
+    app.type_str("vieets ");
+    assert_eq!(app.text, "vieets ");
+    let mut app2 = FakeApp::new(|c| c.method = "both".into());
+    app2.type_str("vieets ngu7o72i ");
+    assert_eq!(app2.text, "viết người ");
+}
+
+#[test]
+fn alt_z_toggle() {
+    let mut app = FakeApp::new(|c| c.toggle_key = "alt_z".into());
+    app.type_str("vieet");
+    let r = app.key('z' as u32, MOD1_MASK, 'z');
+    assert!(r.handled && r.toggled);
+    assert!(!app.h.enabled);
+    assert_eq!(app.text, "viêt");
+    app.type_str(" vieets");
+    assert_eq!(app.text, "viêt vieets");
+    app.key('z' as u32, MOD1_MASK, 'z');
+    app.type_str(" vieets ");
+    assert_eq!(app.text, "viêt vieets viết ");
+}
+
+#[test]
+fn custom_hotkey_ctrl_shift_space() {
+    let mut app = FakeApp::new(|c| c.toggle_key = "custom".into());
+    app.type_str("vieet");
+    let r = app.key(0x20, CONTROL_MASK | SHIFT_MASK, ' ');
+    assert!(r.handled && r.toggled);
+    assert!(!app.h.enabled);
+    assert_eq!(app.text, "viêt");
+    app.key(0x20, CONTROL_MASK | SHIFT_MASK | RELEASE_MASK, ' ');
+    app.type_str(" vieets");
+    assert_eq!(app.text, "viêt vieets");
+    app.key(0x20, CONTROL_MASK | SHIFT_MASK, ' ');
+    app.type_str(" vieets ");
+    assert_eq!(app.text, "viêt vieets viết ");
+    // Ctrl+Shift rồi thả không còn tác dụng
+    app.key(KEY_CONTROL_L, 0, '\0');
+    app.key(KEY_SHIFT_L, CONTROL_MASK, '\0');
+    app.key(KEY_SHIFT_L, CONTROL_MASK | SHIFT_MASK | RELEASE_MASK, '\0');
+    app.key(KEY_CONTROL_L, CONTROL_MASK | RELEASE_MASK, '\0');
+    assert!(app.h.enabled);
+}
+
+#[test]
+fn macros_expand() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("vn, hn! ko\n");
+    assert_eq!(app.text, "Việt Nam, Hà Nội! không\n");
+    app.text.clear();
+    app.type_str("VN");
+    app.key(KEY_TAB, 0, '\0');
+    assert_eq!(app.text, "VIỆT NAM");
+    app.text.clear();
+    app.type_str("file.vn a-vn (vn) ");
+    assert_eq!(app.text, "file.vn a-vn (Việt Nam) ");
+    // preedit hiển thị từ đang gõ, không phải nội dung bung
+    app.type_str("vn");
+    assert_eq!(app.preedit, "vn");
+    app.type_str(" ");
+    assert!(app.text.ends_with("Việt Nam "));
+}
+
+#[test]
+fn macros_when_off() {
+    let mut app = FakeApp::new(|c| c.macros_when_off = true);
+    app.h.set_enabled(false);
+    app.type_str("vn ");
+    assert_eq!(app.text, "Việt Nam ");
+    app.type_str("hello vn");
+    app.key(KEY_RETURN, 0, '\0');
+    assert_eq!(app.text, "Việt Nam hello Việt Nam\n");
+    app.type_str("file.vn ");
+    assert_eq!(app.text, "Việt Nam hello Việt Nam\nfile.vn ");
+    let mut app2 = FakeApp::new(|_| {});
+    app2.h.set_enabled(false);
+    app2.type_str("vn ");
+    assert_eq!(app2.text, "vn ");
+}
+
+#[test]
+fn decomposed_charset() {
+    use unicode_normalization::UnicodeNormalization;
+    let nfd = |s: &str| s.nfd().collect::<String>();
+    let mut app = FakeApp::new(|c| c.charset = "decomposed".into());
+    app.type_str("vieets ");
+    assert_eq!(app.text, nfd("viết "));
+    assert_ne!(app.text, "viết ");
+    let mut app2 = FakeApp::new(|c| {
+        c.charset = "decomposed".into();
+        c.direct_mode = true;
+    });
+    app2.type_str("vieets ");
+    app2.type_str("nguowif");
+    app2.key(KEY_BACKSPACE, 0, '\0');
+    app2.type_str(" ");
+    assert_eq!(app2.text, nfd("viết ngươi "));
+}

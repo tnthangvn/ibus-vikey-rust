@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=ViKey
+Name[vi]=Cài đặt ViKey
+Comment=Vietnamese input method settings (Telex/VNI)
+Comment[vi]=Cài đặt bộ gõ tiếng Việt ViKey: tuỳ chọn, gõ tắt
+Exec=@PREFIX@/vikey-engine --setup
+Icon=@PREFIX@/icons/vikey.svg
+Terminal=false
+Type=Application
+Categories=Settings;Utility;
+Keywords=vietnamese;telex;vni;ibus;unikey;go tieng viet;vikey;
+StartupNotify=true

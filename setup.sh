@@ -17,6 +17,7 @@ cd "$(dirname "$0")"
 PREFIX=/usr/share/ibus-vikey
 COMPONENT=/usr/share/ibus/component/vikey.xml
 DESKTOP=/usr/share/applications/vikey-settings.desktop
+AUTOSTART=/etc/xdg/autostart/vikey-tray.desktop
 HICOLOR=/usr/share/icons/hicolor/scalable/apps
 BIN=bin/vikey-engine
 
@@ -29,6 +30,9 @@ echo "==> [1/6] Cài gói phụ thuộc"
 sudo apt-get install -y ibus >/dev/null
 sudo apt-get install -y python3-gi gir1.2-gtk-4.0 >/dev/null 2>&1 || \
   echo "    (không cài được GTK4 Python - engine vẫn chạy, chỉ thiếu cửa sổ Cài đặt)"
+# Biểu tượng khay Vi/En trên GNOME (Wayland dùng được nhờ extension AppIndicator)
+sudo apt-get install -y gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 >/dev/null 2>&1 || \
+  echo "    (không cài được AppIndicator - vẫn gõ được, chỉ thiếu biểu tượng khay Vi/En)"
 
 echo "==> [2/6] Chuẩn bị binary vikey-engine"
 if [ -x "$BIN" ] && "$BIN" --version >/dev/null 2>&1; then
@@ -65,6 +69,9 @@ sudo cp icons/vikey.svg "$HICOLOR/vikey.svg"
 sudo gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true
 sed "s|@PREFIX@|$PREFIX|g; s|^Icon=.*|Icon=vikey|" vikey-settings.desktop.in | sudo tee "$DESKTOP" >/dev/null
 sudo update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+# Tự chạy biểu tượng khay Vi/En mỗi lần đăng nhập
+sudo mkdir -p "$(dirname "$AUTOSTART")"
+sed "s|@PREFIX@|$PREFIX|g" vikey-tray.desktop.in | sudo tee "$AUTOSTART" >/dev/null
 
 echo "==> [5/6] Đặt IBus làm khung nhập liệu + khởi động lại IBus"
 command -v im-config >/dev/null 2>&1 && im-config -n ibus >/dev/null 2>&1 || true
@@ -104,6 +111,10 @@ fi
 
 # Bảng gõ tắt mẫu cho user hiện tại (nếu chưa có)
 "$PREFIX/vikey-engine" --macro init >/dev/null 2>&1 || true
+
+# Chạy biểu tượng khay Vi/En ngay (không cần đăng nhập lại)
+pkill -f "main.py --tray" >/dev/null 2>&1 || true
+setsid "$PREFIX/vikey-engine" --tray >/dev/null 2>&1 &
 
 cat <<EOF
 

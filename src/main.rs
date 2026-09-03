@@ -5,6 +5,7 @@
 //   vikey-engine --config ...   xem/đổi cấu hình
 //   vikey-engine --macro ...    xem/sửa bảng gõ tắt
 //   vikey-engine --setup        mở cửa sổ Cài đặt (GTK4, phần Python đi kèm)
+//   vikey-engine --tray         biểu tượng khay Vi/En (GTK3+AppIndicator, cho GNOME)
 
 use vikey_engine::{config, hotkey, ibus_main, macros_table, vnengine};
 
@@ -192,6 +193,35 @@ fn cmd_setup() -> i32 {
     1
 }
 
+fn cmd_tray() -> i32 {
+    // Biểu tượng khay Vi/En (GTK3 + AppIndicator), phần Python đi kèm.
+    for dir in [
+        std::env::var("VIKEY_SETUP_DIR").unwrap_or_default(),
+        "/usr/share/ibus-vikey/setup".to_string(),
+    ] {
+        if dir.is_empty() {
+            continue;
+        }
+        let main_py = std::path::Path::new(&dir).join("main.py");
+        if main_py.exists() {
+            let py = std::env::var("VIKEY_PYTHON").unwrap_or_else(|_| "python3".into());
+            let mut cmd = std::process::Command::new(py);
+            cmd.arg(main_py).arg("--tray");
+            // để nút "Cài đặt" trong khay gọi lại đúng binary này
+            if let Ok(exe) = std::env::current_exe() {
+                cmd.env("VIKEY_ENGINE", exe);
+            }
+            let st = cmd.status();
+            return st.map(|s| s.code().unwrap_or(1)).unwrap_or(1);
+        }
+    }
+    eprintln!(
+        "Không tìm thấy phần khay (cần python3-gi + gir1.2-ayatanaappindicator3-0.1).\n\
+         GNOME cần bật extension 'Ubuntu AppIndicators'."
+    );
+    1
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let first = args.first().map(|s| s.as_str()).unwrap_or("--ibus");
@@ -201,12 +231,13 @@ fn main() {
         "--config" => cmd_config(rest),
         "--macro" => cmd_macro(rest),
         "--setup" => cmd_setup(),
+        "--tray" => cmd_tray(),
         "--version" => {
             println!("ViKey (Rust) {}", env!("CARGO_PKG_VERSION"));
             0
         }
         "--help" | "-h" => {
-            println!("vikey-engine --ibus | --test \"...\" | --config [KEY GIÁ_TRỊ] | --macro ... | --setup | --version");
+            println!("vikey-engine --ibus | --test \"...\" | --config [KEY GIÁ_TRỊ] | --macro ... | --setup | --tray | --version");
             0
         }
         _ => {

@@ -165,7 +165,18 @@ def cmd_setup():
     return settings.run()
 
 
+def cmd_tray():
+    try:
+        import tray
+    except (ImportError, ValueError) as e:
+        sys.stderr.write("Không mở được biểu tượng khay (cần AppIndicator): %s\n" % e)
+        return 1
+    return tray.run()
+
+
 def main(argv):
+    if "--tray" in argv:
+        return cmd_tray()
     if "--setup" in argv:
         return cmd_setup()
     if "--test" in argv:

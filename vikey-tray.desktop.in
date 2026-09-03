@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=ViKey Tray
+Name[vi]=Biểu tượng ViKey
+Comment=Vietnamese input indicator (Vi/En) in the top bar
+Comment[vi]=Biểu tượng Vi/En trên thanh trên cho bộ gõ ViKey
+Exec=@PREFIX@/vikey-engine --tray
+Icon=vikey
+Terminal=false
+Type=Application
+Categories=Utility;
+OnlyShowIn=GNOME;Unity;
+X-GNOME-Autostart-enabled=true
+StartupNotify=false

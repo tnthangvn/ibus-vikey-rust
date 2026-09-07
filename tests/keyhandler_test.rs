@@ -444,21 +444,59 @@ fn direct_key_unset_passes_shortcut_through() {
     assert_eq!(app.text, "chào");
 }
 
-/// Client không khai báo hỗ trợ preedit -> tự gõ trực tiếp, config không đổi.
+/// Cờ khả năng thật đo được trên máy GNOME Wayland:
+///   Adminer (pre contenteditable) caps=0x09  -> PREEDIT|FOCUS, KHÔNG surrounding
+///   terminal                      caps=0x29  -> PREEDIT|FOCUS|SURROUNDING
+/// Ô thiếu surrounding tự chuyển sang gõ trực tiếp, ô có thì giữ preedit.
+const CAPS_CONTENTEDITABLE: u32 = 0x09;
+const CAPS_TERMINAL: u32 = 0x29;
+
+#[test]
+fn auto_direct_only_in_contenteditable() {
+    let mut app = FakeApp::new(|_| {});
+
+    app.h.set_client_caps(CAPS_CONTENTEDITABLE);
+    assert!(app.h.use_direct(), "ô web phải gõ trực tiếp");
+    assert!(!app.h.client_has_surrounding());
+    app.type_str("chaof");
+    assert_eq!(app.preedit, "", "không được tạo composition ở ô web");
+    assert_eq!(app.text, "chào");
+
+    // đổi sang terminal: quay lại preedit, không lặp chữ
+    app.focus_out();
+    app.text.clear();
+    app.h.set_client_caps(CAPS_TERMINAL);
+    assert!(!app.h.use_direct(), "terminal phải giữ preedit");
+    assert!(app.h.client_has_surrounding());
+    app.type_str("chaof");
+    assert_eq!(app.preedit, "chào");
+    assert_eq!(app.text, "");
+
+    // và tuỳ chọn đã lưu không bị đụng tới
+    assert!(!app.h.direct_mode);
+}
+
+/// Tắt auto_direct thì mọi ô nhập đều dùng preedit như trước.
+#[test]
+fn auto_direct_can_be_disabled() {
+    let mut app = FakeApp::new(|c| c.auto_direct = false);
+    app.h.set_client_caps(CAPS_CONTENTEDITABLE);
+    assert!(!app.h.use_direct());
+    app.type_str("chaof");
+    assert_eq!(app.preedit, "chào");
+}
+
+/// Client không khai báo hỗ trợ preedit -> gõ trực tiếp kể cả khi tắt auto_direct.
 #[test]
 fn no_preedit_capability_forces_direct() {
-    let mut app = FakeApp::new(|_| {});
+    let mut app = FakeApp::new(|c| c.auto_direct = false);
     assert!(!app.h.use_direct());
-    app.h.set_client_caps(0b0110); // có focus + surrounding text, KHÔNG có preedit
+    app.h.set_client_caps(0x2A); // surrounding + focus + auxtext, KHÔNG preedit
     assert!(app.h.use_direct());
     assert!(!app.h.direct_mode, "không được ghi đè tuỳ chọn của người dùng");
     app.type_str("chaof");
     assert_eq!(app.preedit, "");
     assert_eq!(app.text, "chào");
-
-    // client sau đó có preedit -> quay lại lối cũ
-    app.h.set_client_caps(0b0111);
-    assert!(!app.h.use_direct());
 }
 
 /// caps = 0 nghĩa là chưa biết, không được đổi gì.
@@ -467,4 +505,5 @@ fn unknown_capability_keeps_preedit() {
     let mut app = FakeApp::new(|_| {});
     app.h.set_client_caps(0);
     assert!(!app.h.use_direct());
+    assert!(app.h.client_has_surrounding(), "chưa biết thì đừng gửi Backspace giả");
 }

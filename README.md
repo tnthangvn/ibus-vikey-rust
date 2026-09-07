@@ -63,55 +63,63 @@ Khoá cấu hình (`~/.config/ibus-vikey/config.json`): `method` (telex|vni|both
 `toggle_key` (ctrl_shift|alt_z|custom|none), `toggle_custom`
 (`"<Control><Shift>space"`…), `charset` (precomposed|decomposed), `enabled`,
 `spell_check`, `modern_tone`, `free_marking`, `macros`, `macros_when_off`,
-`direct_mode`, `direct_key` (accelerator, rỗng = tắt), `debug_log`.
+`direct_mode`, `auto_direct`, `direct_key` (accelerator, rỗng = tắt), `debug_log`.
 Đổi cấu hình có hiệu lực khi focus vào ô nhập tiếp theo, không cần khởi động lại.
 
-## Ô nhập contenteditable có tô màu cú pháp (Adminer…)
+## Ô nhập contenteditable của trang web (Adminer…)
 
-Vài trang web dùng `<pre contenteditable="true">` kèm script tô màu chạy trên
-mỗi sự kiện `input` (Adminer + JUSH là ví dụ). Script ghi đè `innerHTML` nên phá
-mất composition range mà trình duyệt đang giữ cho preedit; các mẩu preedit dồn
-lại thành chữ thừa – gõ `mate` ra `mmatmatemate`. Lỗi này xảy ra với mọi bộ gõ,
-không riêng ViKey.
+Vài trang web dùng `<pre contenteditable="true">` kèm script tô màu cú pháp chạy
+trên mỗi sự kiện `input` (Adminer + JUSH là ví dụ). Script ghi đè `innerHTML` nên
+phá mất composition range mà trình duyệt đang giữ cho preedit; các mẩu preedit
+dồn lại thành chữ thừa – gõ `mate` ra `mmatmatemate`. Lỗi này xảy ra với mọi bộ
+gõ, không riêng ViKey.
 
-Cách chữa: bật **Không gạch chân** (`direct_mode`) – engine bỏ preedit, gửi chữ
-thẳng vào ứng dụng nên không còn composition range cho script phá. Vì chế độ này
-lại dễ lặp chữ trong terminal, có phím tắt để bật/tắt nhanh khi chuyển app:
+Engine tự xử lý, không cần bật gì (`auto_direct`, mặc định bật). Nó đọc cờ khả
+năng IBus báo cho từng ô nhập:
+
+| Ô nhập | caps | Lối gõ |
+|---|---|---|
+| terminal, app GTK/Qt | `0x29` = PREEDIT+FOCUS+**SURROUNDING** | preedit, có gạch chân |
+| `contenteditable` của trang web | `0x09` = PREEDIT+FOCUS, **thiếu** SURROUNDING | gõ trực tiếp |
+| client không nhận preedit | thiếu PREEDIT | gõ trực tiếp |
+
+Ô `contenteditable` không khai báo `SURROUNDING_TEXT`; đó là dấu hiệu đáng tin để
+tách chúng khỏi terminal. Vì cùng lý do, ô đó cũng bỏ qua `DeleteSurroundingText`
+nên khi cần sửa chữ engine gửi hẳn phím **Backspace** (`ForwardKeyEvent`, nhấn +
+nhả) để trình duyệt xử lý như người dùng bấm. Ô nào có `SURROUNDING_TEXT` vẫn
+dùng `DeleteSurroundingText` như cũ.
+
+Trạng thái được tính lại mỗi lần đổi ô nhập, không ghi vào `config.json`, nên
+tuỳ chọn của người dùng không bị đụng tới.
+
+Xem engine quyết định gì cho từng ô:
 
 ```bash
-vikey --config direct_key "<Control><Shift>F9"   # đặt phím tắt
-vikey --config direct_key ""                     # bỏ phím tắt
+vikey --config debug_log on
+tail -f ~/.cache/ibus-vikey/vikey.log      # focus_in/out, caps=…, content_type
+vikey --config debug_log off               # nhớ tắt khi xong
+```
+
+Tắt cơ chế tự động (quay lại preedit ở mọi nơi):
+
+```bash
+vikey --config auto_direct off
+```
+
+`direct_mode` là chuyện khác: ép bỏ preedit ở **mọi** ô nhập, kể cả terminal –
+bình thường không cần đến. Có thể đặt phím tắt bật/tắt tạm nó cho một ô nhập:
+
+```bash
+vikey --config direct_key "<Control><Shift>F9"   # đặt
+vikey --config direct_key ""                     # bỏ
 ```
 
 Không đặt được tổ hợp đã bị Chrome / GNOME / ô nhập GTK chiếm (`Ctrl+Shift+D` là
 "lưu tất cả thẻ vào dấu trang", `Ctrl+Shift+I` là DevTools, `Ctrl+Shift+U` là
 nhập ký tự Unicode…) – cả `vikey --config` lẫn hộp thoại trong cửa sổ Cài đặt đều
 từ chối và nói tổ hợp đó đang dùng cho việc gì. Danh sách ở `TAKEN` trong
-`src/hotkey.rs`. Engine nuốt hẳn phím tắt nên ứng dụng không nhận được nữa, vì
-vậy đừng chọn tổ hợp đang cần dùng.
-
-Trong cửa sổ Cài đặt: thẻ *Tuỳ chọn* → *Nâng cao* → nút cạnh công tắc "Không
-gạch chân" (Backspace trong hộp thoại để bỏ phím tắt).
-
-Phím tắt chỉ đổi chế độ cho **ô nhập đang focus**, không ghi vào `config.json` và
-tự quên khi chuyển cửa sổ. Bật cho Adminer xong nhảy sang terminal là terminal đã
-trở lại lối gõ có gạch chân, không phải bấm tắt. Công tắc trong menu Vi/En và cửa
-sổ Cài đặt vẫn là tuỳ chọn lâu dài cho mọi ứng dụng; bấm vào đó sẽ bỏ đặt tạm.
-
-### Nhật ký chẩn đoán
-
-```bash
-vikey --config debug_log on
-tail -f ~/.cache/ibus-vikey/vikey.log
-```
-
-Ghi `focus_in` / `focus_out`, cờ khả năng của ô nhập (`caps=`, trong đó
-`preedit=` và `surrounding=`) và `content_type`. Dùng để xem IBus mô tả từng ứng
-dụng ra sao. Nhớ `debug_log off` khi xong.
-
-Ngoài ra engine đọc cờ `IBUS_CAP_PREEDIT_TEXT`: client nào không khai báo hỗ trợ
-preedit thì tự dùng lối gõ trực tiếp, không ghi đè tuỳ chọn trong `config.json`.
-(Chrome *có* khai báo hỗ trợ preedit nên trường hợp Adminer vẫn phải bật tay.)
+`src/hotkey.rs`. Phím tắt chỉ đổi chế độ cho ô nhập đang focus và tự quên khi
+chuyển cửa sổ.
 
 ## Phím mũi tên khi đang gõ dở
 
@@ -161,7 +169,7 @@ src/ibus_serde.rs      wire-format IBusText/IBusProperty... (zvariant)
 src/engine_service.rs  đối tượng D-Bus org.freedesktop.IBus.Engine
 src/ibus_main.rs       kết nối ibus-daemon, Factory, vòng đời
 tests/engine_equiv.rs  so khớp 15.456 trường hợp + 300 chuỗi Backspace với bản Python
-tests/keyhandler_test.rs  25 kịch bản chống duplicate/gõ tắt/phím chuyển/mũi tên/direct
+tests/keyhandler_test.rs  27 kịch bản chống duplicate/gõ tắt/phím chuyển/mũi tên/chọn lối gõ
 tests/free_marking.rs  7 kịch bản bỏ dấu tự do (bật/tắt, hoàn tác, backspace)
 tests/e2e_ibus.py      kiểm thử đầu-cuối qua ibus-daemon thật (dùng chung với bản Python)
 ```

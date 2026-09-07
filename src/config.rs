@@ -18,6 +18,7 @@ pub struct Config {
     pub macros: bool,
     pub macros_when_off: bool,
     pub direct_mode: bool,
+    pub auto_direct: bool,
     pub debug_log: bool,
 }
 
@@ -36,6 +37,7 @@ impl Default for Config {
             macros: true,
             macros_when_off: false,
             direct_mode: false,
+            auto_direct: true,
             debug_log: false,
         }
     }
@@ -44,9 +46,9 @@ impl Default for Config {
 pub const METHODS: [&str; 3] = ["telex", "vni", "both"];
 pub const TOGGLE_KEYS: [&str; 4] = ["ctrl_shift", "alt_z", "custom", "none"];
 pub const CHARSETS: [&str; 2] = ["precomposed", "decomposed"];
-pub const BOOL_KEYS: [&str; 8] = [
+pub const BOOL_KEYS: [&str; 9] = [
     "enabled", "spell_check", "modern_tone", "free_marking", "macros", "macros_when_off",
-    "direct_mode", "debug_log",
+    "direct_mode", "auto_direct", "debug_log",
 ];
 
 pub fn config_dir() -> PathBuf {
@@ -114,6 +116,7 @@ pub fn load() -> Config {
         macros: boolean(o.get("macros"), d.macros),
         macros_when_off: boolean(o.get("macros_when_off"), d.macros_when_off),
         direct_mode: boolean(o.get("direct_mode"), d.direct_mode),
+        auto_direct: boolean(o.get("auto_direct"), d.auto_direct),
         debug_log: boolean(o.get("debug_log"), d.debug_log),
     };
     // tương thích bản cũ: ctrl_shift_toggle (bool) -> toggle_key
@@ -139,6 +142,7 @@ pub fn save(cfg: &Config) -> std::io::Result<()> {
     m.insert("macros".into(), json!(cfg.macros));
     m.insert("macros_when_off".into(), json!(cfg.macros_when_off));
     m.insert("direct_mode".into(), json!(cfg.direct_mode));
+    m.insert("auto_direct".into(), json!(cfg.auto_direct));
     m.insert("debug_log".into(), json!(cfg.debug_log));
     std::fs::create_dir_all(config_dir())?;
     let mut s = serde_json::to_string_pretty(&Value::Object(m)).unwrap();

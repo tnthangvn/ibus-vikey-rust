@@ -70,9 +70,12 @@ pub struct KeyHandler {
     pub macros_enabled: bool,
     pub macros_when_off: bool,
     pub direct_mode: bool,
-    /// Client hiện tại không khai báo hỗ trợ preedit (IBUS_CAP_PREEDIT_TEXT).
-    /// Khi đó buộc dùng lối gõ trực tiếp, nhưng KHÔNG ghi vào config.json.
-    no_preedit_client: bool,
+    /// Cờ khả năng IBus báo cho ô nhập đang focus, và kết luận rút ra từ đó.
+    /// Đây là ép buộc theo ô nhập, KHÔNG ghi vào config.json.
+    client_caps: u32,
+    client_no_preedit: bool,
+    client_no_surrounding: bool,
+    pub auto_direct: bool,
     pub direct_key: String,
     direct_hotkey: Option<hotkey::Hotkey>,
     /// Phím tắt chỉ đổi chế độ cho ô nhập ĐANG focus; đổi cửa sổ là quên đi, nên
@@ -101,7 +104,10 @@ impl KeyHandler {
             macros_enabled: cfg.macros,
             macros_when_off: cfg.macros_when_off,
             direct_mode: cfg.direct_mode,
-            no_preedit_client: false,
+            client_caps: 0,
+            client_no_preedit: false,
+            client_no_surrounding: false,
+            auto_direct: cfg.auto_direct,
             direct_key: cfg.direct_key.clone(),
             direct_hotkey: None,
             direct_temp: None,
@@ -152,6 +158,13 @@ impl KeyHandler {
             }
             self.direct_mode = cfg.direct_mode;
         }
+        if self.auto_direct != cfg.auto_direct {
+            self.auto_direct = cfg.auto_direct;
+            let p = self.recompute_client_mode();
+            if pending.is_empty() {
+                pending = p;
+            }
+        }
         if self.direct_key != cfg.direct_key {
             self.direct_key = cfg.direct_key.clone();
             self.direct_hotkey = hotkey::parse(&self.direct_key);
@@ -162,7 +175,15 @@ impl KeyHandler {
     /// Lối gõ trực tiếp đang có hiệu lực? (tuỳ chọn của người dùng, hoặc bị ép
     /// vì client không nhận preedit).
     pub fn use_direct(&self) -> bool {
-        self.direct_temp.unwrap_or(self.direct_mode) || self.no_preedit_client
+        self.direct_temp.unwrap_or(self.direct_mode)
+            || self.client_no_preedit
+            || (self.auto_direct && self.client_no_surrounding)
+    }
+
+    /// Ô nhập đang focus có nhận `DeleteSurroundingText` không? Không thì phải
+    /// xoá bằng cách gửi phím Backspace.
+    pub fn client_has_surrounding(&self) -> bool {
+        !self.client_no_surrounding
     }
 
     /// Chế độ đang có hiệu lực cho ô nhập này có phải do phím tắt đặt tạm không?
@@ -178,13 +199,31 @@ impl KeyHandler {
     /// IBus báo khả năng của ô nhập đang focus. `caps == 0` nghĩa là chưa biết.
     /// Trả về chuỗi cần commit nếu buộc phải chốt từ đang dở.
     pub fn set_client_caps(&mut self, caps: u32) -> String {
-        const CAP_PREEDIT_TEXT: u32 = 1;
-        let no_preedit = caps != 0 && caps & CAP_PREEDIT_TEXT == 0;
-        if no_preedit == self.no_preedit_client {
+        self.client_caps = caps;
+        self.recompute_client_mode()
+    }
+
+    /// Chọn lối gõ cho ô nhập đang focus từ cờ khả năng.
+    ///
+    /// - Thiếu `PREEDIT_TEXT`: gửi preedit là vô nghĩa -> gõ trực tiếp.
+    /// - Thiếu `SURROUNDING_TEXT`: gần như luôn là ô `contenteditable` của trang
+    ///   web. Ở đó trình duyệt đặt preedit thẳng vào DOM, script của trang (tô
+    ///   màu cú pháp…) ghi đè `innerHTML` là phá mất composition range, các mẩu
+    ///   preedit dồn lại thành chữ thừa. Gõ trực tiếp không tạo composition nên
+    ///   không dính. Terminal và app GTK/Qt đều CÓ cờ này nên vẫn dùng preedit.
+    fn recompute_client_mode(&mut self) -> String {
+        const CAP_PREEDIT_TEXT: u32 = 1 << 0;
+        const CAP_SURROUNDING_TEXT: u32 = 1 << 5;
+        let caps = self.client_caps;
+        let known = caps != 0;
+        let no_preedit = known && caps & CAP_PREEDIT_TEXT == 0;
+        let no_surrounding = known && caps & CAP_SURROUNDING_TEXT == 0;
+        if no_preedit == self.client_no_preedit && no_surrounding == self.client_no_surrounding {
             return String::new();
         }
         let pending = self.flush();
-        self.no_preedit_client = no_preedit;
+        self.client_no_preedit = no_preedit;
+        self.client_no_surrounding = no_surrounding;
         pending
     }
 

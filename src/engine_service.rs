@@ -83,7 +83,7 @@ impl EngineService {
             self.preedit_visible = false;
         }
         if delete > 0 {
-            self.emit("DeleteSurroundingText", &(-(delete as i32), delete as u32)).await;
+            self.delete_before_cursor(delete).await;
         }
         if let Some(t) = text {
             if !t.is_empty() {
@@ -95,6 +95,26 @@ impl EngineService {
     fn log(&self, line: &str) {
         if self.cfg.debug_log {
             config::log_line(line);
+        }
+    }
+
+    /// Xoá `n` ký tự ngay trước con trỏ.
+    ///
+    /// Ô nhập có `SURROUNDING_TEXT` thì dùng `DeleteSurroundingText` – gọn và
+    /// không sinh sự kiện phím. Ô `contenteditable` của trang web không có cờ đó
+    /// và bỏ qua lệnh xoá, nên phải gửi hẳn phím Backspace (nhấn + nhả) để trình
+    /// duyệt xử lý như người dùng bấm.
+    async fn delete_before_cursor(&mut self, n: usize) {
+        if self.handler.client_has_surrounding() {
+            self.emit("DeleteSurroundingText", &(-(n as i32), n as u32)).await;
+            return;
+        }
+        const KEY_BACKSPACE: u32 = 0xFF08;
+        const KEYCODE_BACKSPACE: u32 = 14; // evdev
+        const RELEASE_MASK: u32 = 1 << 30;
+        for _ in 0..n {
+            self.emit("ForwardKeyEvent", &(KEY_BACKSPACE, KEYCODE_BACKSPACE, 0u32)).await;
+            self.emit("ForwardKeyEvent", &(KEY_BACKSPACE, KEYCODE_BACKSPACE, RELEASE_MASK)).await;
         }
     }
 
@@ -178,7 +198,7 @@ impl EngineService {
         }
         props.push(t);
 
-        let toggles: [(&str, &str, &str, bool); 5] = [
+        let toggles: [(&str, &str, &str, bool); 6] = [
             (
                 "spell_check",
                 "Kiểm tra chính tả (khôi phục phím với từ sai)",
@@ -197,6 +217,12 @@ impl EngineService {
                 "Gõ tắt (vn → Việt Nam...)",
                 "Bung viết tắt khi bấm space/dấu câu/Enter. Bảng: ~/.config/ibus-vikey/macros.txt",
                 h.macros_enabled,
+            ),
+            (
+                "auto_direct",
+                "Tự gõ trực tiếp ở ô nhập của trang web",
+                "Ô contenteditable (Adminer, editor web) không có SURROUNDING_TEXT: preedit ở đó bị script của trang phá, sinh chữ thừa. Terminal và app GTK/Qt vẫn gõ có gạch chân như thường",
+                h.auto_direct,
             ),
             (
                 "direct_mode",
@@ -253,6 +279,7 @@ impl EngineService {
             macros: h.macros_enabled,
             macros_when_off: h.macros_when_off,
             direct_mode: h.direct_mode,
+            auto_direct: h.auto_direct,
             direct_key: h.direct_key.clone(),
             debug_log: self.cfg.debug_log,
         };
@@ -346,6 +373,7 @@ impl EngineService {
                 self.handler.clear_direct_temp();
                 cfg.direct_mode = checked;
             }
+            "auto_direct" => cfg.auto_direct = checked,
             other => {
                 if let Some(v) = other.strip_prefix("method:") {
                     if !checked || !config::METHODS.contains(&v) {
@@ -376,12 +404,13 @@ impl EngineService {
     /// gửi preedit là vô nghĩa -> tự lùi về lối gõ trực tiếp (không ghi config).
     async fn set_capabilities(&mut self, caps: u32) {
         self.log(&format!(
-            "caps=0x{caps:02x} preedit={} auxtext={} lookup={} property={} surrounding={}",
+            "caps=0x{caps:02x} preedit={} auxtext={} lookup={} focus={} property={} surrounding={}",
             caps & 0x01 != 0,
             caps & 0x02 != 0,
             caps & 0x04 != 0,
             caps & 0x08 != 0,
-            caps & 0x40 != 0,
+            caps & 0x10 != 0,
+            caps & 0x20 != 0,
         ));
         let pending = self.handler.set_client_caps(caps);
         if !pending.is_empty() {

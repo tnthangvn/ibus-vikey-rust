@@ -52,7 +52,8 @@ fn cmd_config(args: &[String]) -> i32 {
             ("free_marking", onoff(cfg.free_marking), "bỏ dấu tự do: dend → đen"),
             ("macros", onoff(cfg.macros), ""),
             ("macros_when_off", onoff(cfg.macros_when_off), ""),
-            ("direct_mode", onoff(cfg.direct_mode), ""),
+            ("direct_mode", onoff(cfg.direct_mode), "ép gõ trực tiếp ở MỌI ô nhập"),
+            ("auto_direct", onoff(cfg.auto_direct), "tự gõ trực tiếp ở ô contenteditable"),
             ("debug_log", onoff(cfg.debug_log), "ghi nhật ký chẩn đoán"),
         ];
         for (k, v, extra) in rows {
@@ -120,6 +121,7 @@ fn cmd_config(args: &[String]) -> i32 {
                 "macros" => cfg.macros = b,
                 "macros_when_off" => cfg.macros_when_off = b,
                 "direct_mode" => cfg.direct_mode = b,
+                "auto_direct" => cfg.auto_direct = b,
                 "debug_log" => {
                     cfg.debug_log = b;
                     if b {

@@ -63,8 +63,32 @@ Khoá cấu hình (`~/.config/ibus-vikey/config.json`): `method` (telex|vni|both
 `toggle_key` (ctrl_shift|alt_z|custom|none), `toggle_custom`
 (`"<Control><Shift>space"`…), `charset` (precomposed|decomposed), `enabled`,
 `spell_check`, `modern_tone`, `free_marking`, `macros`, `macros_when_off`,
-`direct_mode`.
+`direct_mode`, `direct_key` (accelerator, rỗng = tắt).
 Đổi cấu hình có hiệu lực khi focus vào ô nhập tiếp theo, không cần khởi động lại.
+
+## Ô nhập contenteditable có tô màu cú pháp (Adminer…)
+
+Vài trang web dùng `<pre contenteditable="true">` kèm script tô màu chạy trên
+mỗi sự kiện `input` (Adminer + JUSH là ví dụ). Script ghi đè `innerHTML` nên phá
+mất composition range mà trình duyệt đang giữ cho preedit; các mẩu preedit dồn
+lại thành chữ thừa – gõ `mate` ra `mmatmatemate`. Lỗi này xảy ra với mọi bộ gõ,
+không riêng ViKey.
+
+Cách chữa: bật **Không gạch chân** (`direct_mode`) – engine bỏ preedit, gửi chữ
+thẳng vào ứng dụng nên không còn composition range cho script phá. Vì chế độ này
+lại dễ lặp chữ trong terminal, có phím tắt để bật/tắt nhanh khi chuyển app:
+
+```bash
+vikey --config direct_key "<Control><Shift>d"   # đặt phím tắt
+vikey --config direct_key ""                    # bỏ phím tắt
+```
+
+Trong cửa sổ Cài đặt: thẻ *Tuỳ chọn* → *Nâng cao* → nút cạnh công tắc "Không
+gạch chân" (Backspace trong hộp thoại để bỏ phím tắt).
+
+Ngoài ra engine đọc cờ `IBUS_CAP_PREEDIT_TEXT`: client nào không khai báo hỗ trợ
+preedit thì tự dùng lối gõ trực tiếp, không ghi đè tuỳ chọn trong `config.json`.
+(Chrome *có* khai báo hỗ trợ preedit nên trường hợp Adminer vẫn phải bật tay.)
 
 ## Phím mũi tên khi đang gõ dở
 
@@ -114,7 +138,7 @@ src/ibus_serde.rs      wire-format IBusText/IBusProperty... (zvariant)
 src/engine_service.rs  đối tượng D-Bus org.freedesktop.IBus.Engine
 src/ibus_main.rs       kết nối ibus-daemon, Factory, vòng đời
 tests/engine_equiv.rs  so khớp 15.456 trường hợp + 300 chuỗi Backspace với bản Python
-tests/keyhandler_test.rs  19 kịch bản chống duplicate/gõ tắt/phím chuyển/mũi tên
+tests/keyhandler_test.rs  25 kịch bản chống duplicate/gõ tắt/phím chuyển/mũi tên/direct
 tests/free_marking.rs  7 kịch bản bỏ dấu tự do (bật/tắt, hoàn tác, backspace)
 tests/e2e_ibus.py      kiểm thử đầu-cuối qua ibus-daemon thật (dùng chung với bản Python)
 ```

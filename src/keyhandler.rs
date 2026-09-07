@@ -70,6 +70,11 @@ pub struct KeyHandler {
     pub macros_enabled: bool,
     pub macros_when_off: bool,
     pub direct_mode: bool,
+    /// Client hiện tại không khai báo hỗ trợ preedit (IBUS_CAP_PREEDIT_TEXT).
+    /// Khi đó buộc dùng lối gõ trực tiếp, nhưng KHÔNG ghi vào config.json.
+    no_preedit_client: bool,
+    pub direct_key: String,
+    direct_hotkey: Option<hotkey::Hotkey>,
     pub charset_decomposed: bool,
     pub macros: MacroTable,
     hotkey: Option<Hotkey>,
@@ -93,6 +98,9 @@ impl KeyHandler {
             macros_enabled: cfg.macros,
             macros_when_off: cfg.macros_when_off,
             direct_mode: cfg.direct_mode,
+            no_preedit_client: false,
+            direct_key: cfg.direct_key.clone(),
+            direct_hotkey: None,
             charset_decomposed: cfg.charset == "decomposed",
             macros: MacroTable::new(),
             hotkey: None,
@@ -102,6 +110,7 @@ impl KeyHandler {
             last_boundary: None,
         };
         h.hotkey = hotkey::parse(&h.toggle_custom);
+        h.direct_hotkey = hotkey::parse(&h.direct_key);
         h
     }
 
@@ -139,6 +148,39 @@ impl KeyHandler {
             }
             self.direct_mode = cfg.direct_mode;
         }
+        if self.direct_key != cfg.direct_key {
+            self.direct_key = cfg.direct_key.clone();
+            self.direct_hotkey = hotkey::parse(&self.direct_key);
+        }
+        pending
+    }
+
+    /// Lối gõ trực tiếp đang có hiệu lực? (tuỳ chọn của người dùng, hoặc bị ép
+    /// vì client không nhận preedit).
+    pub fn use_direct(&self) -> bool {
+        self.direct_mode || self.no_preedit_client
+    }
+
+    /// IBus báo khả năng của ô nhập đang focus. `caps == 0` nghĩa là chưa biết.
+    /// Trả về chuỗi cần commit nếu buộc phải chốt từ đang dở.
+    pub fn set_client_caps(&mut self, caps: u32) -> String {
+        const CAP_PREEDIT_TEXT: u32 = 1;
+        let no_preedit = caps != 0 && caps & CAP_PREEDIT_TEXT == 0;
+        if no_preedit == self.no_preedit_client {
+            return String::new();
+        }
+        let pending = self.flush();
+        self.no_preedit_client = no_preedit;
+        pending
+    }
+
+    /// Bật/tắt lối gõ trực tiếp (phím tắt). Trả về chuỗi cần commit.
+    pub fn set_direct_mode(&mut self, on: bool) -> String {
+        if on == self.direct_mode {
+            return String::new();
+        }
+        let pending = self.flush();
+        self.direct_mode = on;
         pending
     }
 
@@ -201,7 +243,7 @@ impl KeyHandler {
         } else {
             None
         };
-        if self.direct_mode {
+        if self.use_direct() {
             let sent_len = self.sent.chars().count();
             self.engine.reset();
             self.sent.clear();
@@ -220,7 +262,7 @@ impl KeyHandler {
     }
 
     fn flush(&mut self) -> String {
-        let text = if self.direct_mode { String::new() } else { self.out(self.engine.text()) };
+        let text = if self.use_direct() { String::new() } else { self.out(self.engine.text()) };
         self.engine.reset();
         self.sent.clear();
         text
@@ -293,6 +335,26 @@ impl KeyHandler {
             }
         }
 
+        // --- phím tắt bật/tắt "Không gạch chân" (direct_mode)
+        if !is_modifier_key(keyval) {
+            if let Some(hk) = &self.direct_hotkey {
+                if hk.matches(keyval, state & !RELEASE_MASK) {
+                    self.pending_toggle = false;
+                    if released {
+                        return HandleResult { handled: true, ..Default::default() };
+                    }
+                    let commit = self.set_direct_mode(!self.direct_mode);
+                    return HandleResult {
+                        handled: true,
+                        commit: if commit.is_empty() { None } else { Some(commit) },
+                        preedit: Some(String::new()),
+                        toggled: true,
+                        ..Default::default()
+                    };
+                }
+            }
+        }
+
         // --- Ctrl+Shift (không kèm phím khác), giống Unikey
         if is_modifier_key(keyval) {
             if self.toggle_key != "ctrl_shift" {
@@ -338,7 +400,7 @@ impl KeyHandler {
                 return HandleResult::pass();
             }
             self.engine.backspace();
-            if self.direct_mode {
+            if self.use_direct() {
                 let r = self.direct_update();
                 if self.engine.is_empty() {
                     self.sent.clear();
@@ -361,7 +423,7 @@ impl KeyHandler {
 
         if ch.is_ascii_alphabetic() || (ch.is_ascii_digit() && self.engine.accepts_digit()) {
             self.engine.process_key(ch);
-            if self.direct_mode {
+            if self.use_direct() {
                 return self.direct_update();
             }
             return HandleResult {
@@ -379,7 +441,7 @@ impl KeyHandler {
             }
             let (delete, text) = self.finish_word(true);
             self.last_boundary = Some(ch);
-            if self.direct_mode && text.is_empty() {
+            if self.use_direct() && text.is_empty() {
                 return HandleResult::pass(); // chữ đã trong ứng dụng, nhường phím này
             }
             let mut commit = text;

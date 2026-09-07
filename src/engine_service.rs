@@ -194,8 +194,15 @@ impl EngineService {
             ),
             (
                 "direct_mode",
-                "Không gạch chân (gõ trực tiếp – TẮT khi dùng terminal)",
-                "Không dùng preedit; sửa chữ bằng delete_surrounding_text. Có thể lặp chữ ở terminal/app không hỗ trợ",
+                &if h.direct_key.is_empty() {
+                    "Không gạch chân (gõ trực tiếp – TẮT khi dùng terminal)".to_string()
+                } else {
+                    format!(
+                        "Không gạch chân (gõ trực tiếp) – {}",
+                        crate::hotkey::label(&h.direct_key)
+                    )
+                },
+                "Không dùng preedit; sửa chữ bằng delete_surrounding_text. Cần bật với ô contenteditable có tô màu cú pháp (Adminer…); có thể lặp chữ ở terminal/app không hỗ trợ",
                 h.direct_mode,
             ),
         ];
@@ -238,6 +245,7 @@ impl EngineService {
             macros: h.macros_enabled,
             macros_when_off: h.macros_when_off,
             direct_mode: h.direct_mode,
+            direct_key: h.direct_key.clone(),
         };
         let _ = config::save(&self.cfg);
         self.cfg_mtime = config::mtime();
@@ -350,7 +358,14 @@ impl EngineService {
     }
 
     // ------- các phương thức còn lại của giao diện: không cần xử lý
-    async fn set_capabilities(&mut self, _caps: u32) {}
+    /// IBus báo khả năng của ô nhập. Client không có IBUS_CAP_PREEDIT_TEXT thì
+    /// gửi preedit là vô nghĩa -> tự lùi về lối gõ trực tiếp (không ghi config).
+    async fn set_capabilities(&mut self, caps: u32) {
+        let pending = self.handler.set_client_caps(caps);
+        if !pending.is_empty() {
+            self.apply_commit(Some(&pending), 0).await;
+        }
+    }
     async fn set_cursor_location(&mut self, _x: i32, _y: i32, _w: i32, _h: i32) {}
     async fn set_surrounding_text(&mut self, _text: OwnedValue, _cursor: u32, _anchor: u32) {}
     async fn page_up(&mut self) {}

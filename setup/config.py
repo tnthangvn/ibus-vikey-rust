@@ -30,6 +30,8 @@ DEFAULTS = {
     "toggle_key": "ctrl_shift",
     # Tổ hợp phím chuyển tuỳ chỉnh (khi toggle_key = custom), dạng accelerator GTK
     "toggle_custom": "<Control><Shift>space",
+    # Phím tắt bật/tắt "Không gạch chân" (direct_mode); rỗng = không dùng
+    "direct_key": "",
     "charset": "precomposed",
     # Trạng thái tiếng Việt khi khởi động
     "enabled": True,
@@ -49,7 +51,7 @@ DEFAULTS = {
 }
 
 BOOL_KEYS = tuple(k for k, v in DEFAULTS.items() if isinstance(v, bool))
-STRING_KEYS = ("toggle_custom",)
+STRING_KEYS = ("toggle_custom", "direct_key")
 
 
 def _coerce(key, value):

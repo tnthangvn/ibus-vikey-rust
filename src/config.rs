@@ -9,6 +9,7 @@ pub struct Config {
     pub method: String,        // telex | vni | both
     pub toggle_key: String,    // ctrl_shift | alt_z | custom | none
     pub toggle_custom: String, // accelerator GTK, vd "<Control><Shift>space"
+    pub direct_key: String,    // accelerator bật/tắt "Không gạch chân"; rỗng = tắt
     pub charset: String,       // precomposed | decomposed
     pub enabled: bool,
     pub spell_check: bool,
@@ -25,6 +26,7 @@ impl Default for Config {
             method: "telex".into(),
             toggle_key: "ctrl_shift".into(),
             toggle_custom: "<Control><Shift>space".into(),
+            direct_key: String::new(),
             charset: "precomposed".into(),
             enabled: true,
             spell_check: true,
@@ -97,6 +99,11 @@ pub fn load() -> Config {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .unwrap_or(d.toggle_custom),
+        direct_key: o
+            .get("direct_key")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_string())
+            .unwrap_or(d.direct_key),
         charset: choice(o.get("charset"), &CHARSETS, &d.charset),
         enabled: boolean(o.get("enabled"), d.enabled),
         spell_check: boolean(o.get("spell_check"), d.spell_check),
@@ -120,6 +127,7 @@ pub fn save(cfg: &Config) -> std::io::Result<()> {
     m.insert("method".into(), json!(cfg.method));
     m.insert("toggle_key".into(), json!(cfg.toggle_key));
     m.insert("toggle_custom".into(), json!(cfg.toggle_custom));
+    m.insert("direct_key".into(), json!(cfg.direct_key));
     m.insert("charset".into(), json!(cfg.charset));
     m.insert("enabled".into(), json!(cfg.enabled));
     m.insert("spell_check".into(), json!(cfg.spell_check));

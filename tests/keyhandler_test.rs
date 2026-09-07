@@ -372,3 +372,66 @@ fn focus_out_midword_no_duplicate() {
     app.focus_out();
     assert_eq!(app.text, "mate");
 }
+
+const KEY_D: u32 = 'd' as u32;
+
+/// Phím tắt bật/tắt "Không gạch chân" ngay giữa lúc gõ.
+#[test]
+fn direct_key_toggles_direct_mode() {
+    let mut app = FakeApp::new(|c| c.direct_key = "<Control><Shift>d".into());
+    app.type_str("chaof");
+    assert_eq!(app.preedit, "chào");
+    assert_eq!(app.text, "");
+
+    // bật: từ đang dở được chốt, phím tắt bị nuốt
+    let r = app.key(KEY_D, CONTROL_MASK | SHIFT_MASK, 'd');
+    assert!(r.handled && r.toggled);
+    assert_eq!(app.text, "chào");
+    assert_eq!(app.preedit, "");
+    assert!(app.h.direct_mode);
+
+    // giờ chữ đi thẳng vào ứng dụng, không còn preedit
+    app.type_str("bạn");
+    assert_eq!(app.preedit, "");
+    assert!(app.text.starts_with("chào"));
+
+    let r = app.key(KEY_D, CONTROL_MASK | SHIFT_MASK, 'd');
+    assert!(r.handled && r.toggled);
+    assert!(!app.h.direct_mode);
+}
+
+/// Không đặt phím tắt thì Ctrl+Shift+D vẫn là tổ hợp bình thường của ứng dụng.
+#[test]
+fn direct_key_unset_passes_shortcut_through() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("chaof");
+    let r = app.key(KEY_D, CONTROL_MASK | SHIFT_MASK, 'd');
+    assert!(!r.handled);
+    assert!(!r.toggled);
+    assert_eq!(app.text, "chào");
+}
+
+/// Client không khai báo hỗ trợ preedit -> tự gõ trực tiếp, config không đổi.
+#[test]
+fn no_preedit_capability_forces_direct() {
+    let mut app = FakeApp::new(|_| {});
+    assert!(!app.h.use_direct());
+    app.h.set_client_caps(0b0110); // có focus + surrounding text, KHÔNG có preedit
+    assert!(app.h.use_direct());
+    assert!(!app.h.direct_mode, "không được ghi đè tuỳ chọn của người dùng");
+    app.type_str("chaof");
+    assert_eq!(app.preedit, "");
+    assert_eq!(app.text, "chào");
+
+    // client sau đó có preedit -> quay lại lối cũ
+    app.h.set_client_caps(0b0111);
+    assert!(!app.h.use_direct());
+}
+
+/// caps = 0 nghĩa là chưa biết, không được đổi gì.
+#[test]
+fn unknown_capability_keeps_preedit() {
+    let mut app = FakeApp::new(|_| {});
+    app.h.set_client_caps(0);
+    assert!(!app.h.use_direct());
+}

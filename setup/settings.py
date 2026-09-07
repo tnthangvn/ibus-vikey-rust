@@ -57,8 +57,9 @@ SECTIONS = [
     ]),
     ("Nâng cao", [
         ("switch", "direct_mode", "Không gạch chân (gõ trực tiếp)",
-         "Không dùng preedit. Chỉ nên bật với LibreOffice, Firefox, app GTK/Qt. "
-         "TẮT khi dùng terminal / app bị lặp chữ."),
+         "Không dùng preedit. Cần bật với ô nhập contenteditable có tô màu cú pháp "
+         "(Adminer, một số editor web) – ở đó preedit bị script của trang phá, sinh chữ thừa. "
+         "TẮT khi dùng terminal / app bị lặp chữ. Nút bên cạnh đặt phím tắt bật/tắt nhanh."),
     ]),
 ]
 
@@ -138,6 +139,13 @@ class SettingsWindow(Gtk.ApplicationWindow):
             sw = Gtk.Switch(valign=Gtk.Align.CENTER)
             sw.set_active(bool(self.cfg.get(key, config.DEFAULTS[key])))
             sw.connect("state-set", self._on_switch, key)
+            if key == "direct_mode":
+                self._direct_btn = Gtk.Button(valign=Gtk.Align.CENTER)
+                self._direct_btn.set_tooltip_text(
+                    "Phím tắt bật/tắt nhanh khi chuyển qua lại giữa terminal và app web")
+                self._direct_btn.connect("clicked", self._capture_direct_key)
+                self._refresh_direct_btn()
+                h.append(self._direct_btn)
             h.append(sw)
         else:
             values = list(config.CHOICES[key])
@@ -165,14 +173,31 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self._hotkey_btn.set_visible(self.cfg.get("toggle_key") == "custom")
 
     def _capture_hotkey(self, *_a):
-        dlg = Gtk.Window(transient_for=self, modal=True, title="Phím chuyển Việt/Anh")
+        self._capture_into("toggle_custom", "Phím chuyển Việt/Anh",
+                           "Bấm tổ hợp phím bạn muốn dùng để bật/tắt tiếng Việt…")
+
+    # --- phím tắt "Không gạch chân"
+    def _refresh_direct_btn(self):
+        cur = self.cfg.get("direct_key", "")
+        self._direct_btn.set_label(hotkey.label(cur) if cur else "Đặt phím tắt")
+
+    def _capture_direct_key(self, *_a):
+        self._capture_into("direct_key", "Phím tắt Không gạch chân",
+                           "Bấm tổ hợp phím bạn muốn dùng để bật/tắt Không gạch chân…",
+                           clearable=True)
+
+    def _capture_into(self, cfg_key, title, prompt, clearable=False):
+        dlg = Gtk.Window(transient_for=self, modal=True, title=title)
         dlg.set_default_size(380, 140)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         for m in ("set_margin_top", "set_margin_bottom", "set_margin_start", "set_margin_end"):
             getattr(box, m)(20)
-        lb = _label("Bấm tổ hợp phím bạn muốn dùng để bật/tắt tiếng Việt…", xalign=0.5)
+        lb = _label(prompt, xalign=0.5)
         lb.set_justify(Gtk.Justification.CENTER)
-        hint = _label("Ví dụ: Ctrl+Shift+Space, Alt+`, Shift+F12.  Esc để huỷ.", css="dim-label", xalign=0.5)
+        hint_text = "Ví dụ: Ctrl+Shift+Space, Alt+`, Shift+F12.  Esc để huỷ."
+        if clearable:
+            hint_text += "  Backspace để bỏ phím tắt."
+        hint = _label(hint_text, css="dim-label", xalign=0.5)
         box.append(lb)
         box.append(hint)
         dlg.set_child(box)
@@ -181,7 +206,15 @@ class SettingsWindow(Gtk.ApplicationWindow):
 
         def on_key(_c, keyval, _keycode, state):
             from gi.repository import Gdk
-            if keyval == Gdk.KEY_Escape and not (state & Gtk.accelerator_get_default_mod_mask()):
+            mask = Gtk.accelerator_get_default_mod_mask()
+            if keyval == Gdk.KEY_Escape and not (state & mask):
+                dlg.close()
+                return True
+            if clearable and keyval == Gdk.KEY_BackSpace and not (state & mask):
+                self.cfg[cfg_key] = ""
+                config.save(self.cfg)
+                self._refresh_direct_btn()
+                self.flash("Đã bỏ phím tắt Không gạch chân")
                 dlg.close()
                 return True
             if keyval in (Gdk.KEY_Shift_L, Gdk.KEY_Shift_R, Gdk.KEY_Control_L, Gdk.KEY_Control_R,
@@ -197,6 +230,13 @@ class SettingsWindow(Gtk.ApplicationWindow):
                 return True
             if not mods and not (Gdk.KEY_F1 <= keyval_l <= Gdk.KEY_F35):
                 lb.set_text("Cần kèm ít nhất một phím Ctrl/Alt/Shift/Super (trừ phím F1–F12)…")
+                return True
+            if cfg_key == "direct_key":
+                self.cfg["direct_key"] = name
+                config.save(self.cfg)
+                self._refresh_direct_btn()
+                self.flash("Phím tắt Không gạch chân: " + hotkey.label(name))
+                dlg.close()
                 return True
             self.cfg["toggle_custom"] = name
             self.cfg["toggle_key"] = "custom"

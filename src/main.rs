@@ -36,6 +36,15 @@ fn cmd_config(args: &[String]) -> i32 {
                 format!("{}  ({})", cfg.toggle_custom, hotkey::label(&cfg.toggle_custom)),
                 "vd \"<Control><Shift>space\"",
             ),
+            (
+                "direct_key",
+                if cfg.direct_key.is_empty() {
+                    "(tắt)".to_string()
+                } else {
+                    format!("{}  ({})", cfg.direct_key, hotkey::label(&cfg.direct_key))
+                },
+                "phím tắt bật/tắt Không gạch chân; \"\" = tắt",
+            ),
             ("charset", cfg.charset.clone(), "precomposed | decomposed"),
             ("enabled", onoff(cfg.enabled), ""),
             ("spell_check", onoff(cfg.spell_check), ""),
@@ -70,6 +79,14 @@ fn cmd_config(args: &[String]) -> i32 {
         }
         "charset" if config::CHARSETS.contains(&val) => {
             cfg.charset = val.into();
+            true
+        }
+        "direct_key" => {
+            if !val.is_empty() && hotkey::parse(val).is_none() {
+                eprintln!("Tổ hợp không hợp lệ. Ví dụ: \"<Control><Shift>d\". Dùng \"\" để tắt.");
+                return 2;
+            }
+            cfg.direct_key = val.into();
             true
         }
         "toggle_custom" => {

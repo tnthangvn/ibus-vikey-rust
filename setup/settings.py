@@ -194,7 +194,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
             getattr(box, m)(20)
         lb = _label(prompt, xalign=0.5)
         lb.set_justify(Gtk.Justification.CENTER)
-        hint_text = "Ví dụ: Ctrl+Shift+Space, Alt+`, Shift+F12.  Esc để huỷ."
+        hint_text = "Ví dụ: Ctrl+Shift+F9, Ctrl+Shift+Space, Shift+F12.  Esc để huỷ."
         if clearable:
             hint_text += "  Backspace để bỏ phím tắt."
         hint = _label(hint_text, css="dim-label", xalign=0.5)
@@ -230,6 +230,10 @@ class SettingsWindow(Gtk.ApplicationWindow):
                 return True
             if not mods and not (Gdk.KEY_F1 <= keyval_l <= Gdk.KEY_F35):
                 lb.set_text("Cần kèm ít nhất một phím Ctrl/Alt/Shift/Super (trừ phím F1–F12)…")
+                return True
+            taken = hotkey.conflict(name)
+            if taken:
+                lb.set_text("Đụng phím tắt sẵn có – %s. Thử tổ hợp khác, vd Ctrl+Shift+F9…" % taken)
                 return True
             if cfg_key == "direct_key":
                 self.cfg["direct_key"] = name

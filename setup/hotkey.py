@@ -127,3 +127,39 @@ def parse(text, resolver=None):
 def label(text, resolver=None):
     hk = parse(text, resolver)
     return hk.label() if hk else text
+
+
+# Tổ hợp đã bị trình duyệt / desktop / ô nhập GTK chiếm (so theo nhãn chuẩn hoá).
+TAKEN = {
+    "Ctrl+Shift+A": "Chrome: tìm thẻ",
+    "Ctrl+Shift+B": "Chrome: thanh dấu trang",
+    "Ctrl+Shift+C": "Chrome: chọn phần tử để kiểm tra",
+    "Ctrl+Shift+D": "Chrome: lưu tất cả thẻ vào dấu trang",
+    "Ctrl+Shift+G": "Chrome: tìm ngược",
+    "Ctrl+Shift+I": "Chrome: DevTools",
+    "Ctrl+Shift+J": "Chrome: DevTools Console",
+    "Ctrl+Shift+M": "Chrome: đổi hồ sơ người dùng",
+    "Ctrl+Shift+N": "Chrome: cửa sổ ẩn danh",
+    "Ctrl+Shift+O": "Chrome: trình quản lý dấu trang",
+    "Ctrl+Shift+P": "Chrome: in bằng hộp thoại hệ thống",
+    "Ctrl+Shift+R": "Chrome: tải lại bỏ qua cache",
+    "Ctrl+Shift+T": "Chrome: mở lại thẻ vừa đóng",
+    "Ctrl+Shift+V": "Chrome: dán không định dạng",
+    "Ctrl+Shift+W": "Chrome: đóng cửa sổ",
+    "Ctrl+Shift+Delete": "Chrome: xoá dữ liệu duyệt web",
+    "Ctrl+Shift+Tab": "Chrome: thẻ trước đó",
+    "Ctrl+Shift+U": "GTK/IBus: nhập ký tự Unicode",
+    "Ctrl+Shift+E": "GTK/IBus: bảng emoji",
+    "Ctrl+Shift+Z": "ô nhập: làm lại (redo)",
+    "Ctrl+Alt+T": "GNOME: mở terminal",
+    "Ctrl+Alt+D": "GNOME: hiện màn hình nền",
+    "Ctrl+Alt+Delete": "GNOME: đăng xuất",
+    "Ctrl+Shift+Alt+R": "GNOME: quay màn hình",
+    "Alt+F2": "GNOME: chạy lệnh",
+    "Alt+Space": "GNOME: menu cửa sổ",
+}
+
+
+def conflict(text, resolver=None):
+    """Tổ hợp có đụng phím tắt phổ biến không? -> tên hành động, hoặc None."""
+    return TAKEN.get(label(text, resolver))

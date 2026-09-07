@@ -179,3 +179,51 @@ pub fn parse(text: &str) -> Option<Hotkey> {
 pub fn label(text: &str) -> String {
     parse(text).map(|h| h.label()).unwrap_or_else(|| text.to_string())
 }
+
+/// Tổ hợp đã bị trình duyệt / desktop / ô nhập GTK chiếm. So theo nhãn chuẩn
+/// hoá ("Ctrl+Shift+D") nên không phụ thuộc cách viết accelerator.
+const TAKEN: [(&str, &str); 26] = [
+    ("Ctrl+Shift+A", "Chrome: tìm thẻ"),
+    ("Ctrl+Shift+B", "Chrome: thanh dấu trang"),
+    ("Ctrl+Shift+C", "Chrome: chọn phần tử để kiểm tra"),
+    ("Ctrl+Shift+D", "Chrome: lưu tất cả thẻ vào dấu trang"),
+    ("Ctrl+Shift+G", "Chrome: tìm ngược"),
+    ("Ctrl+Shift+I", "Chrome: DevTools"),
+    ("Ctrl+Shift+J", "Chrome: DevTools Console"),
+    ("Ctrl+Shift+M", "Chrome: đổi hồ sơ người dùng"),
+    ("Ctrl+Shift+N", "Chrome: cửa sổ ẩn danh"),
+    ("Ctrl+Shift+O", "Chrome: trình quản lý dấu trang"),
+    ("Ctrl+Shift+P", "Chrome: in bằng hộp thoại hệ thống"),
+    ("Ctrl+Shift+R", "Chrome: tải lại bỏ qua cache"),
+    ("Ctrl+Shift+T", "Chrome: mở lại thẻ vừa đóng"),
+    ("Ctrl+Shift+V", "Chrome: dán không định dạng"),
+    ("Ctrl+Shift+W", "Chrome: đóng cửa sổ"),
+    ("Ctrl+Shift+Delete", "Chrome: xoá dữ liệu duyệt web"),
+    ("Ctrl+Shift+Tab", "Chrome: thẻ trước đó"),
+    ("Ctrl+Shift+U", "GTK/IBus: nhập ký tự Unicode"),
+    ("Ctrl+Shift+E", "GTK/IBus: bảng emoji"),
+    ("Ctrl+Shift+Z", "ô nhập: làm lại (redo)"),
+    ("Ctrl+Alt+T", "GNOME: mở terminal"),
+    ("Ctrl+Alt+D", "GNOME: hiện màn hình nền"),
+    ("Ctrl+Alt+Delete", "GNOME: đăng xuất"),
+    ("Ctrl+Shift+Alt+R", "GNOME: quay màn hình"),
+    ("Alt+F2", "GNOME: chạy lệnh"),
+    ("Alt+Space", "GNOME: menu cửa sổ"),
+];
+
+/// Tổ hợp này có đụng phím tắt phổ biến không? Trả về tên hành động bị đụng.
+pub fn conflict(text: &str) -> Option<&'static str> {
+    let l = label(text);
+    TAKEN.iter().find(|(k, _)| *k == l).map(|(_, what)| *what)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn known_conflicts_are_detected() {
+        assert!(super::conflict("<Control><Shift>d").is_some());
+        assert!(super::conflict("<Primary><Shift>D").is_some()); // khác cách viết
+        assert!(super::conflict("<Control><Shift>F9").is_none());
+        assert!(super::conflict("<Control><Shift>space").is_none());
+    }
+}

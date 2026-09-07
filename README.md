@@ -79,9 +79,16 @@ thẳng vào ứng dụng nên không còn composition range cho script phá. V�
 lại dễ lặp chữ trong terminal, có phím tắt để bật/tắt nhanh khi chuyển app:
 
 ```bash
-vikey --config direct_key "<Control><Shift>d"   # đặt phím tắt
-vikey --config direct_key ""                    # bỏ phím tắt
+vikey --config direct_key "<Control><Shift>F9"   # đặt phím tắt
+vikey --config direct_key ""                     # bỏ phím tắt
 ```
+
+Không đặt được tổ hợp đã bị Chrome / GNOME / ô nhập GTK chiếm (`Ctrl+Shift+D` là
+"lưu tất cả thẻ vào dấu trang", `Ctrl+Shift+I` là DevTools, `Ctrl+Shift+U` là
+nhập ký tự Unicode…) – cả `vikey --config` lẫn hộp thoại trong cửa sổ Cài đặt đều
+từ chối và nói tổ hợp đó đang dùng cho việc gì. Danh sách ở `TAKEN` trong
+`src/hotkey.rs`. Engine nuốt hẳn phím tắt nên ứng dụng không nhận được nữa, vì
+vậy đừng chọn tổ hợp đang cần dùng.
 
 Trong cửa sổ Cài đặt: thẻ *Tuỳ chọn* → *Nâng cao* → nút cạnh công tắc "Không
 gạch chân" (Backspace trong hộp thoại để bỏ phím tắt).

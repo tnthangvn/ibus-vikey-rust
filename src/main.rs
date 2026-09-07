@@ -83,13 +83,21 @@ fn cmd_config(args: &[String]) -> i32 {
         }
         "direct_key" => {
             if !val.is_empty() && hotkey::parse(val).is_none() {
-                eprintln!("Tổ hợp không hợp lệ. Ví dụ: \"<Control><Shift>d\". Dùng \"\" để tắt.");
+                eprintln!("Tổ hợp không hợp lệ. Ví dụ: \"<Control><Shift>F9\". Dùng \"\" để tắt.");
+                return 2;
+            }
+            if let Some(what) = hotkey::conflict(val) {
+                eprintln!("Đã đụng phím tắt sẵn có – {}. Chọn tổ hợp khác, vd \"<Control><Shift>F9\".", what);
                 return 2;
             }
             cfg.direct_key = val.into();
             true
         }
         "toggle_custom" => {
+            if let Some(what) = hotkey::conflict(val) {
+                eprintln!("Đã đụng phím tắt sẵn có – {}. Chọn tổ hợp khác.", what);
+                return 2;
+            }
             if hotkey::parse(val).is_none() {
                 eprintln!("Tổ hợp không hợp lệ. Ví dụ: \"<Control><Shift>space\", \"<Alt>grave\", \"<Shift>F12\"");
                 return 2;

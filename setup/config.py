@@ -48,8 +48,9 @@ DEFAULTS = {
     # --- Nâng cao
     # Gõ trực tiếp, KHÔNG gạch chân (không dùng preedit). Trong terminal có thể lặp chữ.
     "direct_mode": False,
-    # Tự gõ trực tiếp ở ô nhập không có SURROUNDING_TEXT (contenteditable web)
-    "auto_direct": True,
+    # Thử tự chọn lối gõ theo cờ khả năng IBus. Cờ này không ổn định (đổi ngay
+    # giữa một lần focus) nên mặc định TẮT; xem README.
+    "auto_direct": False,
     # Ghi nhật ký chẩn đoán vào ~/.cache/ibus-vikey/vikey.log
     "debug_log": False,
 }

@@ -27,6 +27,7 @@ impl FakeApp {
 
     fn key(&mut self, keyval: u32, state: u32, ch: char) -> HandleResult {
         let r = self.h.handle(keyval, state, ch);
+        self.h.settle();
         if r.delete > 0 {
             self.preedit.clear();
             let n: usize = self.text.chars().count() - r.delete;
@@ -455,7 +456,7 @@ const CAPS_TERMINAL: u32 = 0x09;
 
 #[test]
 fn auto_direct_in_browser_preedit_in_terminal() {
-    let mut app = FakeApp::new(|_| {});
+    let mut app = FakeApp::new(|c| c.auto_direct = true);
 
     app.h.set_client_caps(CAPS_BROWSER);
     assert!(app.h.use_direct(), "ô của trình duyệt phải gõ trực tiếp");
@@ -478,10 +479,12 @@ fn auto_direct_in_browser_preedit_in_terminal() {
     assert!(!app.h.direct_mode);
 }
 
-/// Tắt auto_direct thì mọi ô nhập đều dùng preedit như trước.
+/// Mặc định auto_direct TẮT: mọi ô nhập dùng preedit, công tắc direct_mode là
+/// thứ duy nhất quyết định – không bị cơ chế đoán ghi đè.
 #[test]
-fn auto_direct_can_be_disabled() {
-    let mut app = FakeApp::new(|c| c.auto_direct = false);
+fn auto_direct_off_by_default() {
+    let mut app = FakeApp::new(|_| {});
+    assert!(!app.h.auto_direct);
     app.h.set_client_caps(CAPS_BROWSER);
     assert!(!app.h.use_direct());
     app.type_str("chaof");
@@ -508,4 +511,25 @@ fn unknown_capability_keeps_preedit() {
     app.h.set_client_caps(0);
     assert!(!app.h.use_direct());
     assert!(app.h.client_has_surrounding(), "chưa biết thì đừng gửi Backspace giả");
+}
+
+/// IBus đổi caps ngay giữa một lần focus. Áp lối gõ mới giữa từ sẽ reset engine
+/// và làm mất dấu ("tieengs" -> "tieengs"), nên phải hoãn tới hết từ.
+#[test]
+fn caps_change_midword_does_not_break_the_word() {
+    let mut app = FakeApp::new(|c| c.auto_direct = true);
+    app.h.set_client_caps(CAPS_TERMINAL);
+    assert!(!app.h.use_direct());
+
+    app.type_str("tieen");
+    assert_eq!(app.preedit, "tiên");
+    app.h.set_client_caps(CAPS_BROWSER); // đổi giữa chừng -> hoãn
+    assert!(!app.h.use_direct(), "chưa được đổi lối gõ khi còn từ dở");
+    app.type_str("gs");
+    assert_eq!(app.preedit, "tiếng", "dấu không được mất");
+
+    // hết từ -> cờ mới có hiệu lực
+    app.type_str(" ");
+    assert!(app.h.use_direct());
+    assert_eq!(app.text, "tiếng ");
 }

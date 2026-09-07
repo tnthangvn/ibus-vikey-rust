@@ -73,6 +73,9 @@ pub struct KeyHandler {
     /// Cờ khả năng IBus báo cho ô nhập đang focus, và kết luận rút ra từ đó.
     /// Đây là ép buộc theo ô nhập, KHÔNG ghi vào config.json.
     client_caps: u32,
+    /// Cờ mới nhận được khi đang gõ dở: hoãn lại, đổi lối gõ giữa từ sẽ làm mất
+    /// dấu (IBus đổi caps ngay trong một lần focus, không chỉ khi đổi cửa sổ).
+    pending_caps: Option<u32>,
     /// Ô nhập này phải gõ trực tiếp (không preedit)?
     client_direct: bool,
     /// Ô nhập này nhận `DeleteSurroundingText`? Chưa biết cờ thì coi như có.
@@ -107,6 +110,7 @@ impl KeyHandler {
             macros_when_off: cfg.macros_when_off,
             direct_mode: cfg.direct_mode,
             client_caps: 0,
+            pending_caps: None,
             client_direct: false,
             client_surrounding: true,
             auto_direct: cfg.auto_direct,
@@ -204,8 +208,28 @@ impl KeyHandler {
     /// IBus báo khả năng của ô nhập đang focus. `caps == 0` nghĩa là chưa biết.
     /// Trả về chuỗi cần commit nếu buộc phải chốt từ đang dở.
     pub fn set_client_caps(&mut self, caps: u32) -> String {
+        if !self.engine.is_empty() {
+            self.pending_caps = Some(caps);
+            return String::new();
+        }
         self.client_caps = caps;
         self.recompute_client_mode()
+    }
+
+    /// Gọi sau khi xử lý xong một phím: từ vừa kết thúc thì áp cờ đã hoãn ngay,
+    /// không phải chờ tới phím kế tiếp.
+    pub fn settle(&mut self) {
+        self.apply_pending_caps();
+    }
+
+    /// Áp cờ đã hoãn, gọi khi không còn từ nào đang gõ dở.
+    fn apply_pending_caps(&mut self) {
+        if self.engine.is_empty() {
+            if let Some(c) = self.pending_caps.take() {
+                self.client_caps = c;
+                self.recompute_client_mode();
+            }
+        }
     }
 
     /// Chọn lối gõ cho ô nhập đang focus từ cờ khả năng. Cờ đo được trên
@@ -277,6 +301,10 @@ impl KeyHandler {
         self.shadow.clear();
         self.last_boundary = None;
         self.direct_temp = None;
+        if let Some(c) = self.pending_caps.take() {
+            self.client_caps = c;
+            self.recompute_client_mode();
+        }
     }
 
     fn out(&self, text: String) -> String {
@@ -362,6 +390,9 @@ impl KeyHandler {
     /// keyval: keysym; state: modifier mask; ch: ký tự unicode ('\0' nếu không có).
     pub fn handle(&mut self, keyval: u32, state: u32, ch: char) -> HandleResult {
         let released = state & RELEASE_MASK != 0;
+        if !released {
+            self.apply_pending_caps();
+        }
 
         // --- Alt+Z bật/tắt tiếng Việt
         if self.toggle_key == "alt_z"

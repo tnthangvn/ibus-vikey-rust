@@ -74,53 +74,16 @@ phá mất composition range mà trình duyệt đang giữ cho preedit; các m�
 dồn lại thành chữ thừa – gõ `mate` ra `mmatmatemate`. Lỗi này xảy ra với mọi bộ
 gõ, không riêng ViKey.
 
-Engine tự xử lý, không cần bật gì (`auto_direct`, mặc định bật). Nó đọc cờ khả
-năng IBus báo cho từng ô nhập (số đo thật trên GNOME Wayland):
-
-| Ô nhập | caps | `SURROUNDING_TEXT` | Lối gõ |
-|---|---|---|---|
-| Adminer, ô web trong Chrome | `0x29` | có | gõ trực tiếp |
-| terminal (VTE) | `0x09` | không | preedit, có gạch chân |
-| client không nhận preedit | thiếu `PREEDIT` | – | gõ trực tiếp |
-
-Không có cờ nào nói "đây là contenteditable", nên phải chọn theo cái đo được.
-`SURROUNDING_TEXT` nghĩa là client nhận `DeleteSurroundingText` – gõ trực tiếp ở
-đó sửa chữ được nên an toàn, và tránh hẳn preedit vốn không đáng tin trong trình
-duyệt. Terminal VTE không có cờ đó: preedit ở terminal chạy tốt, còn gõ trực tiếp
-thì không xoá được ký tự, nên giữ preedit.
-
-Đánh đổi: ô nhập nào có `SURROUNDING_TEXT` (phần lớn app GTK, trình duyệt) sẽ
-không còn gạch chân khi đang gõ. Không thích thì `vikey --config auto_direct off`
-để quay lại preedit ở mọi nơi.
-
-Trạng thái được tính lại mỗi lần đổi ô nhập, không ghi vào `config.json`, nên
-tuỳ chọn của người dùng không bị đụng tới.
-
-Xem engine quyết định gì cho từng ô:
+Chữa bằng **Không gạch chân** (`direct_mode`): engine bỏ preedit, gửi chữ thẳng
+vào ứng dụng nên không còn composition range cho script phá.
 
 ```bash
-vikey --config debug_log on
-vikey --log-clear
-vikey --log-mark "ADMINER"      # chạy TRƯỚC khi bấm vào ô cần đo
-#   … bấm vào ô đó, gõ vài chữ …
-cat ~/.cache/ibus-vikey/vikey.log
-vikey --config debug_log off    # nhớ tắt khi xong
+vikey --config direct_mode on     # trước khi vào Adminer
+vikey --config direct_mode off    # khi quay lại terminal
 ```
 
-Mỗi dòng có sẵn `caps=`, `MODE=direct|preedit`, `surrounding=` nên đọc là biết
-engine chọn lối gõ nào cho ô đó, kèm từng phím và việc nó làm (`commit=`,
-`delete … via DeleteSurroundingText` hay `via ForwardKeyEvent(BackSpace)`).
-`--log-mark` chèn mốc để phân đoạn theo ứng dụng – không có mốc thì mấy dòng
-`focus_in` không cho biết đang ở cửa sổ nào.
-
-Tắt cơ chế tự động (quay lại preedit ở mọi nơi):
-
-```bash
-vikey --config auto_direct off
-```
-
-`direct_mode` là chuyện khác: ép bỏ preedit ở **mọi** ô nhập, kể cả terminal –
-bình thường không cần đến. Có thể đặt phím tắt bật/tắt tạm nó cho một ô nhập:
+Vì chế độ này lại dễ lặp chữ trong terminal, đặt được phím tắt để bật/tắt **chỉ
+cho ô nhập đang gõ** – chuyển cửa sổ là tự quên, không kéo theo terminal:
 
 ```bash
 vikey --config direct_key "<Control><Shift>F9"   # đặt
@@ -131,8 +94,37 @@ Không đặt được tổ hợp đã bị Chrome / GNOME / ô nhập GTK chi�
 "lưu tất cả thẻ vào dấu trang", `Ctrl+Shift+I` là DevTools, `Ctrl+Shift+U` là
 nhập ký tự Unicode…) – cả `vikey --config` lẫn hộp thoại trong cửa sổ Cài đặt đều
 từ chối và nói tổ hợp đó đang dùng cho việc gì. Danh sách ở `TAKEN` trong
-`src/hotkey.rs`. Phím tắt chỉ đổi chế độ cho ô nhập đang focus và tự quên khi
-chuyển cửa sổ.
+`src/hotkey.rs`.
+
+### Vì sao không tự nhận biết được
+
+IBus không có cờ nào nói "ô này là contenteditable". Thứ gần nhất là cờ khả năng
+(`SetCapabilities`), nhưng đo thật trên GNOME Wayland thì nó **đổi ngay giữa một
+lần focus** – cùng một cửa sổ lúc báo `0x09` (không có `SURROUNDING_TEXT`) lúc
+báo `0x29` (có). Nó mô tả từng ô nhập ở từng thời điểm, không phải ứng dụng.
+
+Trên Wayland cũng không lấy được cửa sổ đang focus: `org.gnome.Shell.Introspect`
+trả `AccessDenied`, `org.gnome.Shell.Eval` bị tắt, `xprop` chỉ thấy cửa sổ
+XWayland, và mọi app Wayland đều đi qua cùng một IBus client của gnome-shell.
+
+`auto_direct` là cơ chế đoán theo cờ đó, **mặc định tắt** vì kết quả thất thường.
+Bật lên thì ô nào bị đoán là cần gõ trực tiếp sẽ bỏ qua công tắc `direct_mode`.
+
+### Nhật ký chẩn đoán
+
+```bash
+vikey --config debug_log on
+vikey --log-clear
+vikey --log-mark "ADMINER"      # chạy TRƯỚC khi bấm vào ô cần đo
+#   … bấm vào ô đó, gõ vài chữ …
+cat ~/.cache/ibus-vikey/vikey.log
+vikey --config debug_log off    # nhớ tắt khi xong
+```
+
+Mỗi dòng có `caps=`, `MODE=direct|preedit`, `surrounding=`, kèm từng phím và việc
+engine làm (`commit=`, `delete … via DeleteSurroundingText` hay
+`via ForwardKeyEvent(BackSpace)`). `--log-mark` chèn mốc để phân đoạn theo ứng
+dụng – không có mốc thì mấy dòng `focus_in` không cho biết đang ở cửa sổ nào.
 
 ## Phím mũi tên khi đang gõ dở
 

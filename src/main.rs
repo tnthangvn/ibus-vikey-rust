@@ -52,8 +52,8 @@ fn cmd_config(args: &[String]) -> i32 {
             ("free_marking", onoff(cfg.free_marking), "bỏ dấu tự do: dend → đen"),
             ("macros", onoff(cfg.macros), ""),
             ("macros_when_off", onoff(cfg.macros_when_off), ""),
-            ("direct_mode", onoff(cfg.direct_mode), "ép gõ trực tiếp ở MỌI ô nhập"),
-            ("auto_direct", onoff(cfg.auto_direct), "tự gõ trực tiếp ở ô contenteditable"),
+            ("direct_mode", onoff(cfg.direct_mode), "bỏ preedit ở mọi ô nhập"),
+            ("auto_direct", onoff(cfg.auto_direct), "thử tự chọn lối gõ theo caps (thử nghiệm)"),
             ("debug_log", onoff(cfg.debug_log), "ghi nhật ký chẩn đoán"),
         ];
         for (k, v, extra) in rows {

@@ -37,7 +37,7 @@ impl Default for Config {
             macros: true,
             macros_when_off: false,
             direct_mode: false,
-            auto_direct: true,
+            auto_direct: false,
             debug_log: false,
         }
     }

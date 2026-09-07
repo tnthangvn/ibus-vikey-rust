@@ -56,15 +56,15 @@ SECTIONS = [
          "nên có thể lặp chữ ở terminal / app không hỗ trợ."),
     ]),
     ("Nâng cao", [
-        ("switch", "auto_direct", "Tự chọn lối gõ theo ô nhập",
-         "Ô nhập của trình duyệt và app GTK (có SURROUNDING_TEXT) chuyển sang gõ trực tiếp: "
-         "trong trình duyệt, preedit bị script tô màu của trang phá và sinh chữ thừa "
-         "(gõ 'mate' ra 'mmatmatemate'). Terminal không có cờ đó nên vẫn gõ có gạch chân. "
-         "Đánh đổi: mất gạch chân ở phần lớn app. Nên để bật."),
-        ("switch", "direct_mode", "Luôn gõ trực tiếp (không gạch chân)",
-         "Ép bỏ preedit ở MỌI ô nhập, kể cả terminal. Chỉ bật khi bạn thực sự muốn vậy – "
-         "bình thường cứ để tắt và dùng tuỳ chọn tự động ở trên. "
-         "Nút bên cạnh đặt phím tắt bật/tắt tạm cho một ô nhập."),
+        ("switch", "auto_direct", "Thử tự chọn lối gõ theo ô nhập (thử nghiệm)",
+         "Dùng cờ khả năng IBus để đoán ô nhập nào nên gõ trực tiếp. Cờ này không ổn định – "
+         "nó đổi ngay trong một lần focus – nên kết quả thất thường. Bật thì công tắc bên dưới "
+         "mất tác dụng ở những ô bị đoán là cần gõ trực tiếp. Nên để tắt."),
+        ("switch", "direct_mode", "Không gạch chân (gõ trực tiếp)",
+         "Bỏ preedit ở mọi ô nhập. Cần bật khi gõ vào ô contenteditable của trang web "
+         "(Adminer, editor web): ở đó preedit bị script tô màu của trang phá, sinh chữ thừa. "
+         "TẮT khi dùng terminal / app bị lặp chữ. "
+         "Nút bên cạnh đặt phím tắt bật/tắt tạm cho riêng ô nhập đang gõ."),
     ]),
 ]
 

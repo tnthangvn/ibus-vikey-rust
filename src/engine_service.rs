@@ -330,6 +330,7 @@ impl EngineService {
             ));
         }
         self.apply_result(&r).await;
+        self.handler.settle();
         r.handled
     }
 

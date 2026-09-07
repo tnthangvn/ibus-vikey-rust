@@ -180,6 +180,11 @@ impl KeyHandler {
             || (self.auto_direct && self.client_no_surrounding)
     }
 
+    /// Cờ khả năng IBus báo cho ô nhập đang focus (0 = chưa biết).
+    pub fn client_caps(&self) -> u32 {
+        self.client_caps
+    }
+
     /// Ô nhập đang focus có nhận `DeleteSurroundingText` không? Không thì phải
     /// xoá bằng cách gửi phím Backspace.
     pub fn client_has_surrounding(&self) -> bool {

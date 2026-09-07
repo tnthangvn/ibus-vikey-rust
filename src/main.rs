@@ -237,12 +237,24 @@ fn main() {
         "--config" => cmd_config(rest),
         "--macro" => cmd_macro(rest),
         "--setup" => cmd_setup(),
+        "--log-mark" => {
+            // Chèn mốc vào nhật ký để biết đoạn sau thuộc ứng dụng nào.
+            config::log_line(&format!("========== {} ==========", rest.join(" ")));
+            println!("Đã ghi mốc vào {}", config::log_path().display());
+            0
+        }
+        "--log-clear" => {
+            let _ = std::fs::remove_file(config::log_path());
+            println!("Đã xoá {}", config::log_path().display());
+            0
+        }
         "--version" => {
             println!("ViKey (Rust) {}", env!("CARGO_PKG_VERSION"));
             0
         }
         "--help" | "-h" => {
             println!("vikey-engine --ibus | --test \"...\" | --config [KEY GIÁ_TRỊ] | --macro ... | --setup | --version");
+            println!("             --log-clear | --log-mark NHÃN   (chẩn đoán, cần debug_log on)");
             0
         }
         _ => {

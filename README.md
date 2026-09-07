@@ -96,9 +96,18 @@ Xem engine quyết định gì cho từng ô:
 
 ```bash
 vikey --config debug_log on
-tail -f ~/.cache/ibus-vikey/vikey.log      # focus_in/out, caps=…, content_type
-vikey --config debug_log off               # nhớ tắt khi xong
+vikey --log-clear
+vikey --log-mark "ADMINER"      # chạy TRƯỚC khi bấm vào ô cần đo
+#   … bấm vào ô đó, gõ vài chữ …
+cat ~/.cache/ibus-vikey/vikey.log
+vikey --config debug_log off    # nhớ tắt khi xong
 ```
+
+Mỗi dòng có sẵn `caps=`, `MODE=direct|preedit`, `surrounding=` nên đọc là biết
+engine chọn lối gõ nào cho ô đó, kèm từng phím và việc nó làm (`commit=`,
+`delete … via DeleteSurroundingText` hay `via ForwardKeyEvent(BackSpace)`).
+`--log-mark` chèn mốc để phân đoạn theo ứng dụng – không có mốc thì mấy dòng
+`focus_in` không cho biết đang ở cửa sổ nào.
 
 Tắt cơ chế tự động (quay lại preedit ở mọi nơi):
 

@@ -4,7 +4,7 @@
 
 use crate::config::{self, Config};
 use crate::ibus_serde::{self as ser, PropSpec};
-use crate::keyhandler::{HandleResult, KeyHandler};
+use crate::keyhandler::{self, HandleResult, KeyHandler};
 use crate::keyval::keyval_to_char;
 use std::time::{Duration, SystemTime};
 use zbus::object_server::SignalEmitter;
@@ -94,7 +94,16 @@ impl EngineService {
 
     fn log(&self, line: &str) {
         if self.cfg.debug_log {
-            config::log_line(line);
+            let h = &self.handler;
+            config::log_line(&format!(
+                "[{} caps=0x{:02x} {} surrounding={} auto_direct={}] {}",
+                env!("CARGO_PKG_VERSION"),
+                h.client_caps(),
+                if h.use_direct() { "MODE=direct" } else { "MODE=preedit" },
+                h.client_has_surrounding(),
+                h.auto_direct,
+                line
+            ));
         }
     }
 
@@ -106,9 +115,11 @@ impl EngineService {
     /// duyệt xử lý như người dùng bấm.
     async fn delete_before_cursor(&mut self, n: usize) {
         if self.handler.client_has_surrounding() {
+            self.log(&format!("delete {n} via DeleteSurroundingText"));
             self.emit("DeleteSurroundingText", &(-(n as i32), n as u32)).await;
             return;
         }
+        self.log(&format!("delete {n} via ForwardKeyEvent(BackSpace)"));
         const KEY_BACKSPACE: u32 = 0xFF08;
         const KEYCODE_BACKSPACE: u32 = 14; // evdev
         const RELEASE_MASK: u32 = 1 << 30;
@@ -312,6 +323,12 @@ impl EngineService {
     async fn process_key_event(&mut self, keyval: u32, _keycode: u32, state: u32) -> bool {
         let ch = keyval_to_char(keyval);
         let r = self.handler.handle(keyval, state, ch);
+        if self.cfg.debug_log && state & keyhandler::RELEASE_MASK == 0 {
+            self.log(&format!(
+                "key {:?} (0x{keyval:04x}) -> handled={} commit={:?} delete={} preedit={:?}",
+                ch, r.handled, r.commit, r.delete, r.preedit
+            ));
+        }
         self.apply_result(&r).await;
         r.handled
     }

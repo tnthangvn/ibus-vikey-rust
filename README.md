@@ -66,6 +66,16 @@ Khoá cấu hình (`~/.config/ibus-vikey/config.json`): `method` (telex|vni|both
 `direct_mode`.
 Đổi cấu hình có hiệu lực khi focus vào ô nhập tiếp theo, không cần khởi động lại.
 
+## Phím mũi tên khi đang gõ dở
+
+Đang có từ chưa chốt (preedit) mà bấm mũi tên / Home / End / PageUp / PageDown /
+Delete: engine chốt từ và **nuốt phím đó**; bấm lần nữa mới di chuyển con trỏ.
+
+Cần vậy vì nếu vừa commit chữ vừa thả phím xuống ứng dụng trong cùng một nhịp,
+`zsh-autosuggestions` (fetch gợi ý bất đồng bộ) chưa kịp cập nhật và mũi tên phải
+sẽ dán lại gợi ý cũ – gõ `pnpm d` rồi bấm `→` ra `pnpm ddb:migrate && pnpm
+db:generate`. Enter/Tab không đổi (vẫn xuống ứng dụng), F1..F12 cũng vậy.
+
 ## Bỏ dấu tự do (`free_marking`)
 
 Mặc định **tắt** – gõ theo lối Telex/VNI cổ điển: phím dấu phải đứng ngay sau chữ
@@ -104,7 +114,7 @@ src/ibus_serde.rs      wire-format IBusText/IBusProperty... (zvariant)
 src/engine_service.rs  đối tượng D-Bus org.freedesktop.IBus.Engine
 src/ibus_main.rs       kết nối ibus-daemon, Factory, vòng đời
 tests/engine_equiv.rs  so khớp 15.456 trường hợp + 300 chuỗi Backspace với bản Python
-tests/keyhandler_test.rs  14 kịch bản chống duplicate/gõ tắt/phím chuyển
+tests/keyhandler_test.rs  19 kịch bản chống duplicate/gõ tắt/phím chuyển/mũi tên
 tests/free_marking.rs  7 kịch bản bỏ dấu tự do (bật/tắt, hoàn tác, backspace)
 tests/e2e_ibus.py      kiểm thử đầu-cuối qua ibus-daemon thật (dùng chung với bản Python)
 ```

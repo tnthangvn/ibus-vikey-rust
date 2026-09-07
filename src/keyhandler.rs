@@ -17,6 +17,13 @@ pub const KEY_TAB: u32 = 0xFF09;
 pub const KEY_RETURN: u32 = 0xFF0D;
 pub const KEY_ESCAPE: u32 = 0xFF1B;
 pub const KEY_KP_ENTER: u32 = 0xFF8D;
+pub const KEY_DELETE: u32 = 0xFFFF;
+
+/// Phím di chuyển con trỏ / sửa văn bản ở xa: Home Left Up Right Down
+/// Page_Up Page_Down End Begin, và bản bàn phím số (KP_Home..KP_Begin, KP_Delete).
+fn is_cursor_key(v: u32) -> bool {
+    matches!(v, 0xFF50..=0xFF58 | 0xFF95..=0xFF9D | 0xFF9F | KEY_DELETE)
+}
 
 pub const SHIFT_MASK: u32 = hotkey::SHIFT_MASK;
 pub const CONTROL_MASK: u32 = hotkey::CONTROL_MASK;
@@ -386,7 +393,34 @@ impl KeyHandler {
             };
         }
 
-        // phím chức năng, mũi tên, Home/End, Delete, F1..F12 ...
+        // Mũi tên / Home / End / PageUp / PageDown / Delete: chốt từ đang dở rồi
+        // NUỐT phím. Nếu thả phím xuống ứng dụng ngay sau khi commit, chữ vừa
+        // commit và phím này tới nơi trong cùng một nhịp; zsh-autosuggestions
+        // (fetch gợi ý bất đồng bộ) chưa kịp cập nhật nên mũi tên dán lại gợi ý
+        // cũ, sinh chữ thừa: "pnpm d" + →  ->  "pnpm ddb:migrate...".
+        // Ấn lần nữa thì không còn từ dở, phím đi thẳng như thường.
+        if is_cursor_key(keyval) && self.is_composing() {
+            let (delete, text) = self.finish_word(false);
+            self.last_boundary = None;
+            if delete == 0 && text.is_empty() {
+                // direct_mode: chữ đã nằm sẵn trong ứng dụng, không commit gì
+                // -> không có nhịp nào để đua, nhường phím như cũ.
+                return HandleResult {
+                    handled: false,
+                    preedit: Some(String::new()),
+                    ..Default::default()
+                };
+            }
+            return HandleResult {
+                handled: true,
+                commit: Some(text),
+                preedit: Some(String::new()),
+                delete,
+                ..Default::default()
+            };
+        }
+
+        // phím chức năng khác (F1..F12, Insert, ...)
         self.commit_and_pass(false, None)
     }
 

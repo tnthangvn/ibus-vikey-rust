@@ -283,3 +283,70 @@ fn decomposed_charset() {
     app2.type_str(" ");
     assert_eq!(app2.text, nfd("viết ngươi "));
 }
+
+const KEY_RIGHT: u32 = 0xFF53;
+const KEY_LEFT: u32 = 0xFF51;
+const KEY_UP: u32 = 0xFF52;
+const KEY_HOME: u32 = 0xFF50;
+const KEY_DELETE_: u32 = 0xFFFF;
+const KEY_F5: u32 = 0xFFC2;
+
+/// Đang gõ dở + mũi tên: chốt từ và NUỐT phím. Thả phím xuống ứng dụng ngay sau
+/// khi commit sẽ khiến zsh-autosuggestions dán lại gợi ý cũ ("pnpm ddb:migrate").
+#[test]
+fn cursor_key_commits_and_swallows_while_composing() {
+    for k in [KEY_RIGHT, KEY_LEFT, KEY_UP, KEY_HOME, KEY_DELETE_] {
+        let mut app = FakeApp::new(|_| {});
+        app.type_str("pnpm d");
+        assert_eq!(app.preedit, "d");
+        assert_eq!(app.text, "pnpm ");
+        let r = app.key(k, 0, '\0');
+        assert!(r.handled, "keyval={k:#x} phải nuốt phím");
+        assert_eq!(app.text, "pnpm d");
+        assert_eq!(app.preedit, "");
+    }
+}
+
+/// Không gõ dở thì mũi tên đi thẳng xuống ứng dụng như cũ.
+#[test]
+fn cursor_key_passes_through_when_idle() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("pnpm ");
+    let r = app.key(KEY_RIGHT, 0, '\0');
+    assert!(!r.handled);
+    assert_eq!(app.text, "pnpm ");
+}
+
+/// Ấn lần hai: từ đã chốt nên phím xuống ứng dụng bình thường.
+#[test]
+fn second_cursor_key_press_passes_through() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("chaof");
+    assert_eq!(app.preedit, "chào");
+    assert!(app.key(KEY_RIGHT, 0, '\0').handled);
+    assert_eq!(app.text, "chào");
+    assert!(!app.key(KEY_RIGHT, 0, '\0').handled);
+    assert_eq!(app.text, "chào");
+}
+
+/// direct_mode: chữ đã nằm trong ứng dụng, không có gì để commit -> nhường phím.
+#[test]
+fn cursor_key_passes_through_in_direct_mode() {
+    let mut app = FakeApp::new(|c| c.direct_mode = true);
+    app.type_str("chaof");
+    assert_eq!(app.text, "chào");
+    let r = app.key(KEY_RIGHT, 0, '\0');
+    assert!(!r.handled);
+    assert_eq!(app.text, "chào");
+}
+
+/// Phím chức năng khác (F1..F12) vẫn commit rồi nhường phím như trước.
+#[test]
+fn function_key_still_commits_and_passes() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("chaof");
+    let r = app.key(KEY_F5, 0, '\0');
+    assert!(!r.handled);
+    assert_eq!(app.text, "chào");
+    assert_eq!(app.preedit, "");
+}

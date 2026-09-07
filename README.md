@@ -75,19 +75,23 @@ dồn lại thành chữ thừa – gõ `mate` ra `mmatmatemate`. Lỗi này x�
 gõ, không riêng ViKey.
 
 Engine tự xử lý, không cần bật gì (`auto_direct`, mặc định bật). Nó đọc cờ khả
-năng IBus báo cho từng ô nhập:
+năng IBus báo cho từng ô nhập (số đo thật trên GNOME Wayland):
 
-| Ô nhập | caps | Lối gõ |
-|---|---|---|
-| terminal, app GTK/Qt | `0x29` = PREEDIT+FOCUS+**SURROUNDING** | preedit, có gạch chân |
-| `contenteditable` của trang web | `0x09` = PREEDIT+FOCUS, **thiếu** SURROUNDING | gõ trực tiếp |
-| client không nhận preedit | thiếu PREEDIT | gõ trực tiếp |
+| Ô nhập | caps | `SURROUNDING_TEXT` | Lối gõ |
+|---|---|---|---|
+| Adminer, ô web trong Chrome | `0x29` | có | gõ trực tiếp |
+| terminal (VTE) | `0x09` | không | preedit, có gạch chân |
+| client không nhận preedit | thiếu `PREEDIT` | – | gõ trực tiếp |
 
-Ô `contenteditable` không khai báo `SURROUNDING_TEXT`; đó là dấu hiệu đáng tin để
-tách chúng khỏi terminal. Vì cùng lý do, ô đó cũng bỏ qua `DeleteSurroundingText`
-nên khi cần sửa chữ engine gửi hẳn phím **Backspace** (`ForwardKeyEvent`, nhấn +
-nhả) để trình duyệt xử lý như người dùng bấm. Ô nào có `SURROUNDING_TEXT` vẫn
-dùng `DeleteSurroundingText` như cũ.
+Không có cờ nào nói "đây là contenteditable", nên phải chọn theo cái đo được.
+`SURROUNDING_TEXT` nghĩa là client nhận `DeleteSurroundingText` – gõ trực tiếp ở
+đó sửa chữ được nên an toàn, và tránh hẳn preedit vốn không đáng tin trong trình
+duyệt. Terminal VTE không có cờ đó: preedit ở terminal chạy tốt, còn gõ trực tiếp
+thì không xoá được ký tự, nên giữ preedit.
+
+Đánh đổi: ô nhập nào có `SURROUNDING_TEXT` (phần lớn app GTK, trình duyệt) sẽ
+không còn gạch chân khi đang gõ. Không thích thì `vikey --config auto_direct off`
+để quay lại preedit ở mọi nơi.
 
 Trạng thái được tính lại mỗi lần đổi ô nhập, không ghi vào `config.json`, nên
 tuỳ chọn của người dùng không bị đụng tới.

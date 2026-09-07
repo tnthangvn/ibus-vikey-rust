@@ -444,32 +444,34 @@ fn direct_key_unset_passes_shortcut_through() {
     assert_eq!(app.text, "chào");
 }
 
-/// Cờ khả năng thật đo được trên máy GNOME Wayland:
-///   Adminer (pre contenteditable) caps=0x09  -> PREEDIT|FOCUS, KHÔNG surrounding
-///   terminal                      caps=0x29  -> PREEDIT|FOCUS|SURROUNDING
-/// Ô thiếu surrounding tự chuyển sang gõ trực tiếp, ô có thì giữ preedit.
-const CAPS_CONTENTEDITABLE: u32 = 0x09;
-const CAPS_TERMINAL: u32 = 0x29;
+/// Cờ khả năng đo thật trên GNOME Wayland (xem ~/.cache/ibus-vikey/vikey.log):
+///   Adminer, ô contenteditable trong Chrome  caps=0x29  PREEDIT|FOCUS|SURROUNDING
+///   terminal VTE                             caps=0x09  PREEDIT|FOCUS
+/// Ô có SURROUNDING nhận được DeleteSurroundingText nên gõ trực tiếp an toàn, và
+/// tránh được preedit vốn bị script của trang web phá. Terminal không có cờ đó
+/// nên giữ preedit.
+const CAPS_BROWSER: u32 = 0x29;
+const CAPS_TERMINAL: u32 = 0x09;
 
 #[test]
-fn auto_direct_only_in_contenteditable() {
+fn auto_direct_in_browser_preedit_in_terminal() {
     let mut app = FakeApp::new(|_| {});
 
-    app.h.set_client_caps(CAPS_CONTENTEDITABLE);
-    assert!(app.h.use_direct(), "ô web phải gõ trực tiếp");
-    assert!(!app.h.client_has_surrounding());
-    app.type_str("chaof");
-    assert_eq!(app.preedit, "", "không được tạo composition ở ô web");
-    assert_eq!(app.text, "chào");
+    app.h.set_client_caps(CAPS_BROWSER);
+    assert!(app.h.use_direct(), "ô của trình duyệt phải gõ trực tiếp");
+    assert!(app.h.client_has_surrounding());
+    app.type_str("tieengs");
+    assert_eq!(app.preedit, "", "không được tạo composition trong trình duyệt");
+    assert_eq!(app.text, "tiếng");
 
-    // đổi sang terminal: quay lại preedit, không lặp chữ
+    // đổi sang terminal: quay lại preedit
     app.focus_out();
     app.text.clear();
     app.h.set_client_caps(CAPS_TERMINAL);
     assert!(!app.h.use_direct(), "terminal phải giữ preedit");
-    assert!(app.h.client_has_surrounding());
-    app.type_str("chaof");
-    assert_eq!(app.preedit, "chào");
+    assert!(!app.h.client_has_surrounding());
+    app.type_str("tieengs");
+    assert_eq!(app.preedit, "tiếng");
     assert_eq!(app.text, "");
 
     // và tuỳ chọn đã lưu không bị đụng tới
@@ -480,7 +482,7 @@ fn auto_direct_only_in_contenteditable() {
 #[test]
 fn auto_direct_can_be_disabled() {
     let mut app = FakeApp::new(|c| c.auto_direct = false);
-    app.h.set_client_caps(CAPS_CONTENTEDITABLE);
+    app.h.set_client_caps(CAPS_BROWSER);
     assert!(!app.h.use_direct());
     app.type_str("chaof");
     assert_eq!(app.preedit, "chào");
@@ -491,7 +493,7 @@ fn auto_direct_can_be_disabled() {
 fn no_preedit_capability_forces_direct() {
     let mut app = FakeApp::new(|c| c.auto_direct = false);
     assert!(!app.h.use_direct());
-    app.h.set_client_caps(0x2A); // surrounding + focus + auxtext, KHÔNG preedit
+    app.h.set_client_caps(0x0A); // focus + auxtext, KHÔNG preedit, KHÔNG surrounding
     assert!(app.h.use_direct());
     assert!(!app.h.direct_mode, "không được ghi đè tuỳ chọn của người dùng");
     app.type_str("chaof");

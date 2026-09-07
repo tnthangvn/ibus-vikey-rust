@@ -37,6 +37,8 @@ DEFAULTS = {
     "spell_check": True,
     # Đặt dấu kiểu mới: hoà, khoẻ, thuý (False = hòa, khỏe, thúy)
     "modern_tone": False,
+    # Bỏ dấu tự do: gõ dd / aa ee oo ở cuối từ vẫn ăn (dend -> đen, tienge -> tiêng)
+    "free_marking": False,
     # --- Gõ tắt
     "macros": True,
     # Gõ tắt cả khi đang tắt tiếng Việt (thay chữ bằng delete_surrounding_text)

@@ -9,7 +9,8 @@ Python gốc và cùng một bộ kiểm thử đầu-cuối chạy qua `ibus-da
 Tính năng đầy đủ như bản Python 1.4.0: Telex / VNI / cả hai; không duplicate text
 (preedit + commit một lần, không Backspace giả); dùng được trong terminal; kiểm
 tra chính tả – khôi phục phím với từ sai (`windows`, `status`, `sudo apt`… giữ
-nguyên); đặt dấu kiểu cũ/mới; gõ tắt kiểu Unikey (bảng `macros.txt`, tự chỉnh chữ
+nguyên); đặt dấu kiểu cũ/mới; **bỏ dấu tự do** (gõ `dend` ra `đen`, `tienges` ra
+`tiếng` – tuỳ chọn, mặc định tắt); gõ tắt kiểu Unikey (bảng `macros.txt`, tự chỉnh chữ
 hoa, tuỳ chọn chạy cả khi tắt tiếng Việt); phím chuyển Việt/Anh Ctrl+Shift /
 Alt+Z / tuỳ chỉnh (vd Ctrl+Shift+Space) / tắt; chế độ "Không gạch chân"; bảng mã
 NFC/NFD; menu Vi/En trên thanh trên; trạng thái Việt/Anh chung mọi cửa sổ.
@@ -61,8 +62,35 @@ vikey --setup                        # cửa sổ Cài đặt (GTK4)
 Khoá cấu hình (`~/.config/ibus-vikey/config.json`): `method` (telex|vni|both),
 `toggle_key` (ctrl_shift|alt_z|custom|none), `toggle_custom`
 (`"<Control><Shift>space"`…), `charset` (precomposed|decomposed), `enabled`,
-`spell_check`, `modern_tone`, `macros`, `macros_when_off`, `direct_mode`.
+`spell_check`, `modern_tone`, `free_marking`, `macros`, `macros_when_off`,
+`direct_mode`.
 Đổi cấu hình có hiệu lực khi focus vào ô nhập tiếp theo, không cần khởi động lại.
+
+## Bỏ dấu tự do (`free_marking`)
+
+Mặc định **tắt** – gõ theo lối Telex/VNI cổ điển: phím dấu phải đứng ngay sau chữ
+cái gốc (`ddeen`, `tieeng`). Bật lên thì phím dấu tìm mục tiêu trong cả âm tiết,
+nên đặt được ở cuối từ:
+
+```bash
+vikey --config free_marking on
+vikey --test "dend duongwd tienges khongo dauad"   # đen đương tiếng không đâu
+```
+
+| Nhóm phím | Tắt | Bật |
+|---|---|---|
+| `dd` / `9` (đ) | phải liền: `dden` | tự do: `dend`, `duongwd` |
+| `aa ee oo` / `6` (â ê ô) | phải liền: `tieeng` | tự do: `tienge`, `khongo` |
+| `w` / `7` `8` (ơ ư ă) | tự do sẵn | tự do |
+| `s f r x j` / `1`-`5` (thanh) | tự do sẵn | tự do |
+
+Gõ lặp phím dấu để hoàn tác (`bietee` → `biete`) chỉ nhận khi phím nằm ngay sau
+phím đã tạo dấu – hoàn tác từ xa sẽ nuốt mất một chữ đã gõ (`banana`).
+
+Đánh đổi: vài từ tiếng Anh có dạng âm tiết hợp lệ tiếng Việt sẽ bị biến đổi
+(`dad` → `đa`, `data` → `dât`, `deed` → `đê`). Kiểm tra chính tả vẫn giữ nguyên
+`windows`, `sudo`, `status`, `added`, `dodge`, `google`… Bấm phím chuyển Việt/Anh
+khi cần gõ tiếng Anh nhiều.
 
 ## Mã nguồn & kiểm thử
 
@@ -77,6 +105,7 @@ src/engine_service.rs  đối tượng D-Bus org.freedesktop.IBus.Engine
 src/ibus_main.rs       kết nối ibus-daemon, Factory, vòng đời
 tests/engine_equiv.rs  so khớp 15.456 trường hợp + 300 chuỗi Backspace với bản Python
 tests/keyhandler_test.rs  14 kịch bản chống duplicate/gõ tắt/phím chuyển
+tests/free_marking.rs  7 kịch bản bỏ dấu tự do (bật/tắt, hoàn tác, backspace)
 tests/e2e_ibus.py      kiểm thử đầu-cuối qua ibus-daemon thật (dùng chung với bản Python)
 ```
 

@@ -18,7 +18,7 @@ fn cmd_test(args: &[String]) -> i32 {
     }
     let out: Vec<String> = words
         .iter()
-        .map(|w| vnengine::type_word(w, cfg.spell_check, cfg.modern_tone, method))
+        .map(|w| vnengine::type_word_ex(w, cfg.spell_check, cfg.modern_tone, method, cfg.free_marking))
         .collect();
     println!("{}", out.join(" "));
     0
@@ -40,6 +40,7 @@ fn cmd_config(args: &[String]) -> i32 {
             ("enabled", onoff(cfg.enabled), ""),
             ("spell_check", onoff(cfg.spell_check), ""),
             ("modern_tone", onoff(cfg.modern_tone), ""),
+            ("free_marking", onoff(cfg.free_marking), "bỏ dấu tự do: dend → đen"),
             ("macros", onoff(cfg.macros), ""),
             ("macros_when_off", onoff(cfg.macros_when_off), ""),
             ("direct_mode", onoff(cfg.direct_mode), ""),
@@ -89,6 +90,7 @@ fn cmd_config(args: &[String]) -> i32 {
                 "enabled" => cfg.enabled = b,
                 "spell_check" => cfg.spell_check = b,
                 "modern_tone" => cfg.modern_tone = b,
+                "free_marking" => cfg.free_marking = b,
                 "macros" => cfg.macros = b,
                 "macros_when_off" => cfg.macros_when_off = b,
                 "direct_mode" => cfg.direct_mode = b,

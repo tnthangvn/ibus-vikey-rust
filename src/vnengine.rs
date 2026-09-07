@@ -151,6 +151,9 @@ fn nucleus_ok(n: &str) -> bool {
 pub struct VnEngine {
     pub spell_check: bool,
     pub modern_tone: bool,
+    /// Bỏ dấu tự do: phím dấu (dd, aa/ee/oo) tìm mục tiêu trong cả âm tiết,
+    /// không bắt buộc đứng ngay sau chữ cái gốc ("dend" -> đen, "tienge" -> tiêng).
+    pub free_marking: bool,
     pub method: Method,
     entries: Vec<Entry>,
     chars: Vec<VChar>,
@@ -163,6 +166,7 @@ impl VnEngine {
         VnEngine {
             spell_check,
             modern_tone,
+            free_marking: false,
             method,
             entries: Vec::new(),
             chars: Vec::new(),
@@ -365,6 +369,9 @@ impl VnEngine {
 
     // --- dấu mũ: aa ee oo (Telex) / 6 (VNI)
     fn apply_hat(&mut self, i: usize, bases: &[char]) -> bool {
+        if self.free_marking {
+            return self.apply_hat_free(i, bases);
+        }
         let j = match self.last_vowel() {
             Some(j) => j,
             None => return false,
@@ -388,6 +395,50 @@ impl VnEngine {
                 self.chars[j].mark = Mark::None;
                 self.chars[j].mark_entry = None;
                 self.chars[j].frozen = true;
+                self.append_literal(i, true);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Bỏ dấu tự do: quét cả cụm nguyên âm (kể cả khi đã có phụ âm cuối),
+    /// giống cách `apply_horn` đã làm cho w/7/8.
+    fn apply_hat_free(&mut self, i: usize, bases: &[char]) -> bool {
+        let cluster = self.raw_cluster();
+        if cluster.is_empty() {
+            return false;
+        }
+        // ưu tiên đặt dấu: nguyên âm khớp gần cuối cụm nhất, chưa có dấu
+        for &k in cluster.iter().rev() {
+            let c = &self.chars[k];
+            if c.mark != Mark::None || c.frozen || !bases.contains(&c.base) {
+                continue;
+            }
+            if self.is_qu_u(k) {
+                continue;
+            }
+            self.chars[k].mark = Mark::Hat;
+            self.chars[k].mark_entry = Some(i);
+            self.entries[i].state = EntryState::Mod;
+            return true;
+        }
+        // Không còn mục tiêu -> gõ lặp để hoàn tác ("bietee" -> biete).
+        // Chỉ nhận khi phím dấu vừa gõ nằm ngay sau phím đã tạo dấu; hoàn tác
+        // từ xa sẽ nuốt mất một chữ đã gõ ("banana" -> "banna").
+        for &k in cluster.iter().rev() {
+            let c = self.chars[k].clone();
+            if c.mark != Mark::Hat || !bases.contains(&c.base) {
+                continue;
+            }
+            if c.mark_entry != Some(i.wrapping_sub(1)) {
+                continue;
+            }
+            if let Some(me) = c.mark_entry {
+                self.entries[me].state = EntryState::Undone;
+                self.chars[k].mark = Mark::None;
+                self.chars[k].mark_entry = None;
+                self.chars[k].frozen = true;
                 self.append_literal(i, true);
                 return true;
             }
@@ -537,13 +588,23 @@ impl VnEngine {
         if c0.base != 'd' {
             return false;
         }
-        if c0.mark == Mark::None && !c0.frozen && self.chars[1..].iter().all(|c| c.is_vowel()) {
+        // Âm tiết tiếng Việt không có 'd' ở phụ âm cuối, nên khi bỏ dấu tự do
+        // mọi phím 'd' sau chữ đầu đều là phím tạo đ ("dend" -> đen).
+        let reachable = self.free_marking || self.chars[1..].iter().all(|c| c.is_vowel());
+        if c0.mark == Mark::None && !c0.frozen && reachable {
             self.chars[0].mark = Mark::Stroke;
             self.chars[0].mark_entry = Some(i);
             self.entries[i].state = EntryState::Mod;
             return true;
         }
-        if c0.mark == Mark::Stroke && c0.mark_entry.is_some() && self.chars.len() == 1 {
+        // Hoàn tác: lối cũ chỉ khi từ mới có mỗi 'đ'; bỏ dấu tự do thì phím 'd'
+        // phải nằm ngay sau phím đã tạo đ, tránh nuốt chữ ở "dadad".
+        let undoable = if self.free_marking {
+            c0.mark_entry == Some(i.wrapping_sub(1))
+        } else {
+            self.chars.len() == 1
+        };
+        if c0.mark == Mark::Stroke && c0.mark_entry.is_some() && undoable {
             self.entries[c0.mark_entry.unwrap()].state = EntryState::Undone;
             self.chars[0].mark = Mark::None;
             self.chars[0].mark_entry = None;
@@ -685,7 +746,19 @@ impl VnEngine {
 
 /// Tiện ích cho test/CLI: gõ một chuỗi phím và trả về kết quả.
 pub fn type_word(word: &str, spell_check: bool, modern_tone: bool, method: Method) -> String {
+    type_word_ex(word, spell_check, modern_tone, method, false)
+}
+
+/// Như `type_word` nhưng chọn được chế độ bỏ dấu tự do.
+pub fn type_word_ex(
+    word: &str,
+    spell_check: bool,
+    modern_tone: bool,
+    method: Method,
+    free_marking: bool,
+) -> String {
     let mut e = VnEngine::new(spell_check, modern_tone, method);
+    e.free_marking = free_marking;
     for k in word.chars() {
         e.process_key(k);
     }

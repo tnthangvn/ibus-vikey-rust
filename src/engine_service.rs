@@ -172,7 +172,7 @@ impl EngineService {
         }
         props.push(t);
 
-        let toggles: [(&str, &str, &str, bool); 4] = [
+        let toggles: [(&str, &str, &str, bool); 5] = [
             (
                 "spell_check",
                 "Kiểm tra chính tả (khôi phục phím với từ sai)",
@@ -180,6 +180,12 @@ impl EngineService {
                 h.engine.spell_check,
             ),
             ("modern_tone", "Đặt dấu kiểu mới (hoà, khoẻ, thuý)", "Tắt: hòa, khỏe, thúy", h.engine.modern_tone),
+            (
+                "free_marking",
+                "Bỏ dấu tự do (gõ dấu ở cuối từ: dend → đen)",
+                "Phím dd / aa ee oo (6 9 với VNI) đặt được ở cuối từ, không cần đứng ngay sau chữ gốc. Tắt: phải gõ ddeen, tieengs",
+                h.engine.free_marking,
+            ),
             (
                 "macros",
                 "Gõ tắt (vn → Việt Nam...)",
@@ -228,6 +234,7 @@ impl EngineService {
             enabled: h.enabled,
             spell_check: h.engine.spell_check,
             modern_tone: h.engine.modern_tone,
+            free_marking: h.engine.free_marking,
             macros: h.macros_enabled,
             macros_when_off: h.macros_when_off,
             direct_mode: h.direct_mode,
@@ -314,6 +321,7 @@ impl EngineService {
             }
             "spell_check" => cfg.spell_check = checked,
             "modern_tone" => cfg.modern_tone = checked,
+            "free_marking" => cfg.free_marking = checked,
             "macros" => cfg.macros = checked,
             "direct_mode" => cfg.direct_mode = checked,
             other => {

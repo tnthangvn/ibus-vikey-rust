@@ -75,7 +75,11 @@ pub struct KeyHandler {
 impl KeyHandler {
     pub fn new(cfg: &crate::config::Config) -> KeyHandler {
         let mut h = KeyHandler {
-            engine: VnEngine::new(cfg.spell_check, cfg.modern_tone, Method::from_str(&cfg.method)),
+            engine: {
+                let mut e = VnEngine::new(cfg.spell_check, cfg.modern_tone, Method::from_str(&cfg.method));
+                e.free_marking = cfg.free_marking;
+                e
+            },
             enabled: cfg.enabled,
             toggle_key: cfg.toggle_key.clone(),
             toggle_custom: cfg.toggle_custom.clone(),
@@ -104,6 +108,7 @@ impl KeyHandler {
         }
         self.engine.spell_check = cfg.spell_check;
         self.engine.modern_tone = cfg.modern_tone;
+        self.engine.free_marking = cfg.free_marking;
         self.toggle_key = cfg.toggle_key.clone();
         if self.toggle_custom != cfg.toggle_custom {
             self.toggle_custom = cfg.toggle_custom.clone();

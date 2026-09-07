@@ -41,6 +41,12 @@ SECTIONS = [
          "Nên bật khi hay dùng terminal."),
         ("switch", "modern_tone", "Đặt dấu kiểu mới (hoà, khoẻ, thuý)",
          "Tắt: đặt dấu kiểu cũ (hòa, khỏe, thúy)."),
+        ("switch", "free_marking", "Bỏ dấu tự do (gõ dấu ở cuối từ)",
+         "Phím dd và aa ee oo (9, 6 với VNI) tìm chữ cái trong cả từ, không cần đứng ngay sau nó: "
+         "dend → đen, duongd → đường, tienge → tiêng, khongo → không. "
+         "Dấu thanh (s f r x j) và w vốn đã tự do. "
+         "Tắt: gõ theo lối cũ (ddeen, tieeng). Lưu ý: bật lên thì vài từ tiếng Anh như 'dad', 'data' "
+         "có thể bị biến đổi."),
     ]),
     ("Gõ tắt", [
         ("switch", "macros", "Cho phép gõ tắt",

@@ -13,6 +13,7 @@ pub struct Config {
     pub enabled: bool,
     pub spell_check: bool,
     pub modern_tone: bool,
+    pub free_marking: bool,
     pub macros: bool,
     pub macros_when_off: bool,
     pub direct_mode: bool,
@@ -28,6 +29,7 @@ impl Default for Config {
             enabled: true,
             spell_check: true,
             modern_tone: false,
+            free_marking: false,
             macros: true,
             macros_when_off: false,
             direct_mode: false,
@@ -38,8 +40,9 @@ impl Default for Config {
 pub const METHODS: [&str; 3] = ["telex", "vni", "both"];
 pub const TOGGLE_KEYS: [&str; 4] = ["ctrl_shift", "alt_z", "custom", "none"];
 pub const CHARSETS: [&str; 2] = ["precomposed", "decomposed"];
-pub const BOOL_KEYS: [&str; 6] = [
-    "enabled", "spell_check", "modern_tone", "macros", "macros_when_off", "direct_mode",
+pub const BOOL_KEYS: [&str; 7] = [
+    "enabled", "spell_check", "modern_tone", "free_marking", "macros", "macros_when_off",
+    "direct_mode",
 ];
 
 pub fn config_dir() -> PathBuf {
@@ -98,6 +101,7 @@ pub fn load() -> Config {
         enabled: boolean(o.get("enabled"), d.enabled),
         spell_check: boolean(o.get("spell_check"), d.spell_check),
         modern_tone: boolean(o.get("modern_tone"), d.modern_tone),
+        free_marking: boolean(o.get("free_marking"), d.free_marking),
         macros: boolean(o.get("macros"), d.macros),
         macros_when_off: boolean(o.get("macros_when_off"), d.macros_when_off),
         direct_mode: boolean(o.get("direct_mode"), d.direct_mode),
@@ -120,6 +124,7 @@ pub fn save(cfg: &Config) -> std::io::Result<()> {
     m.insert("enabled".into(), json!(cfg.enabled));
     m.insert("spell_check".into(), json!(cfg.spell_check));
     m.insert("modern_tone".into(), json!(cfg.modern_tone));
+    m.insert("free_marking".into(), json!(cfg.free_marking));
     m.insert("macros".into(), json!(cfg.macros));
     m.insert("macros_when_off".into(), json!(cfg.macros_when_off));
     m.insert("direct_mode".into(), json!(cfg.direct_mode));

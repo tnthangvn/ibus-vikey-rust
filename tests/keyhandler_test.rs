@@ -350,3 +350,25 @@ fn function_key_still_commits_and_passes() {
     assert_eq!(app.text, "chào");
     assert_eq!(app.preedit, "");
 }
+
+/// "mate" (không dấu, có 'e' cuối) không được sinh chữ thừa.
+#[test]
+fn plain_english_word_no_duplicate() {
+    for on in [false, true] {
+        let mut app = FakeApp::new(|c| c.free_marking = on);
+        app.type_str("mate ");
+        assert_eq!(app.text, "mate ", "free_marking={on}");
+        assert_eq!(app.preedit, "");
+    }
+}
+
+/// Mất focus giữa chừng: IBus tự commit preedit, engine không commit lại.
+#[test]
+fn focus_out_midword_no_duplicate() {
+    let mut app = FakeApp::new(|_| {});
+    app.type_str("mate");
+    assert_eq!(app.preedit, "mate");
+    assert_eq!(app.text, "");
+    app.focus_out();
+    assert_eq!(app.text, "mate");
+}

@@ -181,7 +181,12 @@ impl KeyHandler {
     /// Lối gõ trực tiếp đang có hiệu lực? (tuỳ chọn của người dùng, hoặc bị ép
     /// vì client không nhận preedit).
     pub fn use_direct(&self) -> bool {
-        self.direct_temp.unwrap_or(self.direct_mode) || self.client_direct
+        // Phím tắt là quyết định cuối cùng: đặt tạm phải tắt được cả lối gõ do
+        // cấu hình lẫn do auto_direct ép.
+        match self.direct_temp {
+            Some(v) => v,
+            None => self.direct_mode || self.client_direct,
+        }
     }
 
     /// Cờ khả năng IBus báo cho ô nhập đang focus (0 = chưa biết).
@@ -266,10 +271,11 @@ impl KeyHandler {
     /// Phím tắt: bật/tắt lối gõ trực tiếp CHO Ô NHẬP ĐANG FOCUS. Không ghi vào
     /// config.json và tự quên khi chuyển cửa sổ. Trả về chuỗi cần commit.
     pub fn toggle_direct_temp(&mut self) -> String {
-        let now = self.direct_temp.unwrap_or(self.direct_mode);
+        let now = self.use_direct();
+        let without_temp = self.direct_mode || self.client_direct;
         let pending = self.flush();
-        // đảo về đúng giá trị đã lưu -> bỏ hẳn đặt tạm
-        self.direct_temp = if now != self.direct_mode { None } else { Some(!now) };
+        // đảo về đúng chế độ vốn có -> bỏ hẳn đặt tạm
+        self.direct_temp = if now != without_temp { None } else { Some(!now) };
         pending
     }
 

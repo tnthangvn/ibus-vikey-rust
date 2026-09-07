@@ -231,24 +231,31 @@ impl EngineService {
             ),
             (
                 "auto_direct",
-                "Tự gõ trực tiếp ở ô nhập của trang web",
-                "Ô contenteditable (Adminer, editor web) không có SURROUNDING_TEXT: preedit ở đó bị script của trang phá, sinh chữ thừa. Terminal và app GTK/Qt vẫn gõ có gạch chân như thường",
+                "Tự chọn lối gõ theo ô nhập (thử nghiệm)",
+                "Đoán theo cờ khả năng IBus. Cờ này đổi ngay giữa một lần focus nên kết quả thất thường; bật thì công tắc dưới bị ghi đè ở những ô bị đoán là cần gõ trực tiếp. Nên để tắt",
                 h.auto_direct,
             ),
             (
                 "direct_mode",
+                // Nhãn nói chế độ ĐANG có hiệu lực, còn ô đánh dấu phải theo đúng
+                // giá trị của công tắc này. Trước đây đánh dấu theo use_direct()
+                // nên phím tắt hoặc auto_direct ghi đè là công tắc thành nút chết.
                 &{
                     let mut s = "Không gạch chân (gõ trực tiếp)".to_string();
                     if !h.direct_key.is_empty() {
                         s.push_str(&format!(" – {}", crate::hotkey::label(&h.direct_key)));
                     }
-                    if h.direct_is_temp() {
-                        s.push_str(" [tạm cho ô này]");
+                    if h.use_direct() != h.direct_mode {
+                        s.push_str(if h.direct_is_temp() {
+                            " [ô này: tạm theo phím tắt]"
+                        } else {
+                            " [ô này: tự động]"
+                        });
                     }
                     s
                 },
-                "Không dùng preedit; sửa chữ bằng delete_surrounding_text. Cần bật với ô contenteditable có tô màu cú pháp (Adminer…); có thể lặp chữ ở terminal/app không hỗ trợ",
-                h.use_direct(),
+                "Bỏ preedit ở mọi ô nhập. Cần bật với ô contenteditable của trang web (Adminer…); có thể lặp chữ ở terminal/app không hỗ trợ",
+                h.direct_mode,
             ),
         ];
         for (key, label, tip, val) in toggles {

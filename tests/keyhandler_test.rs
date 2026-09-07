@@ -533,3 +533,41 @@ fn caps_change_midword_does_not_break_the_word() {
     assert!(app.h.use_direct());
     assert_eq!(app.text, "tiếng ");
 }
+
+/// Ô đánh dấu của mục "Không gạch chân" trong menu Vi/En phải theo đúng công tắc
+/// đó, không theo chế độ đang có hiệu lực. Nếu theo use_direct() thì phím tắt
+/// hoặc auto_direct ghi đè là công tắc thành nút chết, và bật auto_direct sẽ kéo
+/// theo mục kia tự đổi.
+#[test]
+fn menu_direct_toggle_tracks_its_own_setting() {
+    let mut app = FakeApp::new(|c| {
+        c.auto_direct = true;
+        c.direct_key = "<Control><Shift>d".into();
+    });
+    app.h.set_client_caps(CAPS_BROWSER);
+
+    // auto_direct đang ép gõ trực tiếp, nhưng công tắc vẫn phải là "tắt"
+    assert!(app.h.use_direct());
+    assert!(!app.h.direct_mode);
+
+    // gạt công tắc lên rồi xuống: giá trị của nó phải đổi theo từng lần
+    let mut cfg = Config {
+        auto_direct: true,
+        direct_key: "<Control><Shift>d".into(),
+        direct_mode: true,
+        ..Config::default()
+    };
+    app.h.configure(&cfg);
+    assert!(app.h.direct_mode);
+    cfg.direct_mode = false;
+    app.h.configure(&cfg);
+    assert!(!app.h.direct_mode);
+
+    // phím tắt đặt tạm cũng không được ghi vào công tắc, và phải tắt được cả
+    // lối gõ do auto_direct ép
+    assert!(app.h.use_direct());
+    app.key(KEY_D, CONTROL_MASK | SHIFT_MASK, 'd');
+    assert!(app.h.direct_is_temp());
+    assert!(!app.h.use_direct(), "phím tắt phải ghi đè được auto_direct");
+    assert!(!app.h.direct_mode);
+}

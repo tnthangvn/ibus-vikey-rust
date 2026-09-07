@@ -375,9 +375,10 @@ fn focus_out_midword_no_duplicate() {
 
 const KEY_D: u32 = 'd' as u32;
 
-/// Phím tắt bật/tắt "Không gạch chân" ngay giữa lúc gõ.
+/// Phím tắt "Không gạch chân" chỉ đổi chế độ cho ô nhập ĐANG focus: bật cho
+/// Chrome không được kéo theo terminal, và không ghi vào config.json.
 #[test]
-fn direct_key_toggles_direct_mode() {
+fn direct_key_toggles_only_current_focus() {
     let mut app = FakeApp::new(|c| c.direct_key = "<Control><Shift>d".into());
     app.type_str("chaof");
     assert_eq!(app.preedit, "chào");
@@ -388,16 +389,48 @@ fn direct_key_toggles_direct_mode() {
     assert!(r.handled && r.toggled);
     assert_eq!(app.text, "chào");
     assert_eq!(app.preedit, "");
-    assert!(app.h.direct_mode);
+    assert!(app.h.use_direct());
+    assert!(app.h.direct_is_temp());
+    assert!(!app.h.direct_mode, "không được ghi đè tuỳ chọn đã lưu");
 
-    // giờ chữ đi thẳng vào ứng dụng, không còn preedit
-    app.type_str("bạn");
+    // chữ đi thẳng vào ứng dụng, không còn preedit
+    app.type_str("banj");
     assert_eq!(app.preedit, "");
-    assert!(app.text.starts_with("chào"));
+    assert_eq!(app.text, "chàobạn");
 
-    let r = app.key(KEY_D, CONTROL_MASK | SHIFT_MASK, 'd');
-    assert!(r.handled && r.toggled);
-    assert!(!app.h.direct_mode);
+    // đổi cửa sổ -> quên đặt tạm, quay lại preedit
+    app.focus_out();
+    assert!(!app.h.use_direct());
+    assert!(!app.h.direct_is_temp());
+    app.text.clear();
+    app.type_str("chaof");
+    assert_eq!(app.preedit, "chào");
+}
+
+/// Bấm phím tắt lần hai trong cùng ô nhập thì về đúng tuỳ chọn đã lưu.
+#[test]
+fn direct_key_second_press_returns_to_config() {
+    let mut app = FakeApp::new(|c| c.direct_key = "<Control><Shift>d".into());
+    assert!(app.key(KEY_D, CONTROL_MASK | SHIFT_MASK, 'd').handled);
+    assert!(app.h.use_direct());
+    assert!(app.key(KEY_D, CONTROL_MASK | SHIFT_MASK, 'd').handled);
+    assert!(!app.h.use_direct());
+    assert!(!app.h.direct_is_temp(), "về đúng cấu hình thì bỏ hẳn đặt tạm");
+}
+
+/// direct_mode bật sẵn trong config: phím tắt tắt tạm cho ô này (dùng ngược lại).
+#[test]
+fn direct_key_can_disable_for_one_field() {
+    let mut app = FakeApp::new(|c| {
+        c.direct_mode = true;
+        c.direct_key = "<Control><Shift>d".into();
+    });
+    assert!(app.h.use_direct());
+    app.key(KEY_D, CONTROL_MASK | SHIFT_MASK, 'd');
+    assert!(!app.h.use_direct());
+    assert!(app.h.direct_mode, "cấu hình đã lưu không đổi");
+    app.focus_out();
+    assert!(app.h.use_direct());
 }
 
 /// Không đặt phím tắt thì Ctrl+Shift+D vẫn là tổ hợp bình thường của ứng dụng.

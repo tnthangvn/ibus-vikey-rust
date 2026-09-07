@@ -53,6 +53,7 @@ fn cmd_config(args: &[String]) -> i32 {
             ("macros", onoff(cfg.macros), ""),
             ("macros_when_off", onoff(cfg.macros_when_off), ""),
             ("direct_mode", onoff(cfg.direct_mode), ""),
+            ("debug_log", onoff(cfg.debug_log), "ghi nhật ký chẩn đoán"),
         ];
         for (k, v, extra) in rows {
             if extra.is_empty() {
@@ -119,6 +120,12 @@ fn cmd_config(args: &[String]) -> i32 {
                 "macros" => cfg.macros = b,
                 "macros_when_off" => cfg.macros_when_off = b,
                 "direct_mode" => cfg.direct_mode = b,
+                "debug_log" => {
+                    cfg.debug_log = b;
+                    if b {
+                        println!("Nhật ký: {}", config::log_path().display());
+                    }
+                }
                 _ => unreachable!(),
             }
             true

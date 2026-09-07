@@ -92,6 +92,12 @@ impl EngineService {
         }
     }
 
+    fn log(&self, line: &str) {
+        if self.cfg.debug_log {
+            config::log_line(line);
+        }
+    }
+
     async fn apply_result(&mut self, r: &HandleResult) {
         if r.commit.is_some() || r.delete > 0 {
             self.apply_commit(r.commit.as_deref(), r.delete).await;
@@ -194,16 +200,18 @@ impl EngineService {
             ),
             (
                 "direct_mode",
-                &if h.direct_key.is_empty() {
-                    "Không gạch chân (gõ trực tiếp – TẮT khi dùng terminal)".to_string()
-                } else {
-                    format!(
-                        "Không gạch chân (gõ trực tiếp) – {}",
-                        crate::hotkey::label(&h.direct_key)
-                    )
+                &{
+                    let mut s = "Không gạch chân (gõ trực tiếp)".to_string();
+                    if !h.direct_key.is_empty() {
+                        s.push_str(&format!(" – {}", crate::hotkey::label(&h.direct_key)));
+                    }
+                    if h.direct_is_temp() {
+                        s.push_str(" [tạm cho ô này]");
+                    }
+                    s
                 },
                 "Không dùng preedit; sửa chữ bằng delete_surrounding_text. Cần bật với ô contenteditable có tô màu cú pháp (Adminer…); có thể lặp chữ ở terminal/app không hỗ trợ",
-                h.direct_mode,
+                h.use_direct(),
             ),
         ];
         for (key, label, tip, val) in toggles {
@@ -246,6 +254,7 @@ impl EngineService {
             macros_when_off: h.macros_when_off,
             direct_mode: h.direct_mode,
             direct_key: h.direct_key.clone(),
+            debug_log: self.cfg.debug_log,
         };
         let _ = config::save(&self.cfg);
         self.cfg_mtime = config::mtime();
@@ -282,11 +291,13 @@ impl EngineService {
 
     async fn focus_in(&mut self) {
         self.reload_cfg_if_changed().await;
+        self.log("focus_in");
         self.handler.macros.maybe_reload(Duration::from_millis(0));
         self.register_props().await;
     }
 
     async fn focus_out(&mut self) {
+        self.log("focus_out");
         // IBus đã commit preedit (chế độ COMMIT); chỉ cần quên từ đang soạn.
         self.handler.clear();
         self.preedit_visible = false;
@@ -331,7 +342,10 @@ impl EngineService {
             "modern_tone" => cfg.modern_tone = checked,
             "free_marking" => cfg.free_marking = checked,
             "macros" => cfg.macros = checked,
-            "direct_mode" => cfg.direct_mode = checked,
+            "direct_mode" => {
+                self.handler.clear_direct_temp();
+                cfg.direct_mode = checked;
+            }
             other => {
                 if let Some(v) = other.strip_prefix("method:") {
                     if !checked || !config::METHODS.contains(&v) {
@@ -361,6 +375,14 @@ impl EngineService {
     /// IBus báo khả năng của ô nhập. Client không có IBUS_CAP_PREEDIT_TEXT thì
     /// gửi preedit là vô nghĩa -> tự lùi về lối gõ trực tiếp (không ghi config).
     async fn set_capabilities(&mut self, caps: u32) {
+        self.log(&format!(
+            "caps=0x{caps:02x} preedit={} auxtext={} lookup={} property={} surrounding={}",
+            caps & 0x01 != 0,
+            caps & 0x02 != 0,
+            caps & 0x04 != 0,
+            caps & 0x08 != 0,
+            caps & 0x40 != 0,
+        ));
         let pending = self.handler.set_client_caps(caps);
         if !pending.is_empty() {
             self.apply_commit(Some(&pending), 0).await;
@@ -382,7 +404,9 @@ impl EngineService {
         (0, 0)
     }
     #[zbus(property)]
-    async fn set_content_type(&mut self, _v: (u32, u32)) {}
+    async fn set_content_type(&mut self, v: (u32, u32)) {
+        self.log(&format!("content_type purpose={} hints=0x{:x}", v.0, v.1));
+    }
 }
 
 /// org.freedesktop.IBus.Service (daemon gọi Destroy khi bỏ engine).

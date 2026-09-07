@@ -75,6 +75,9 @@ pub struct KeyHandler {
     no_preedit_client: bool,
     pub direct_key: String,
     direct_hotkey: Option<hotkey::Hotkey>,
+    /// Phím tắt chỉ đổi chế độ cho ô nhập ĐANG focus; đổi cửa sổ là quên đi, nên
+    /// bật cho Chrome không kéo theo terminal.
+    direct_temp: Option<bool>,
     pub charset_decomposed: bool,
     pub macros: MacroTable,
     hotkey: Option<Hotkey>,
@@ -101,6 +104,7 @@ impl KeyHandler {
             no_preedit_client: false,
             direct_key: cfg.direct_key.clone(),
             direct_hotkey: None,
+            direct_temp: None,
             charset_decomposed: cfg.charset == "decomposed",
             macros: MacroTable::new(),
             hotkey: None,
@@ -158,7 +162,17 @@ impl KeyHandler {
     /// Lối gõ trực tiếp đang có hiệu lực? (tuỳ chọn của người dùng, hoặc bị ép
     /// vì client không nhận preedit).
     pub fn use_direct(&self) -> bool {
-        self.direct_mode || self.no_preedit_client
+        self.direct_temp.unwrap_or(self.direct_mode) || self.no_preedit_client
+    }
+
+    /// Chế độ đang có hiệu lực cho ô nhập này có phải do phím tắt đặt tạm không?
+    pub fn direct_is_temp(&self) -> bool {
+        self.direct_temp.is_some()
+    }
+
+    /// Bỏ đặt tạm (khi người dùng đổi tuỳ chọn trong menu/cửa sổ Cài đặt).
+    pub fn clear_direct_temp(&mut self) {
+        self.direct_temp = None;
     }
 
     /// IBus báo khả năng của ô nhập đang focus. `caps == 0` nghĩa là chưa biết.
@@ -174,13 +188,13 @@ impl KeyHandler {
         pending
     }
 
-    /// Bật/tắt lối gõ trực tiếp (phím tắt). Trả về chuỗi cần commit.
-    pub fn set_direct_mode(&mut self, on: bool) -> String {
-        if on == self.direct_mode {
-            return String::new();
-        }
+    /// Phím tắt: bật/tắt lối gõ trực tiếp CHO Ô NHẬP ĐANG FOCUS. Không ghi vào
+    /// config.json và tự quên khi chuyển cửa sổ. Trả về chuỗi cần commit.
+    pub fn toggle_direct_temp(&mut self) -> String {
+        let now = self.direct_temp.unwrap_or(self.direct_mode);
         let pending = self.flush();
-        self.direct_mode = on;
+        // đảo về đúng giá trị đã lưu -> bỏ hẳn đặt tạm
+        self.direct_temp = if now != self.direct_mode { None } else { Some(!now) };
         pending
     }
 
@@ -211,6 +225,7 @@ impl KeyHandler {
         self.sent.clear();
         self.shadow.clear();
         self.last_boundary = None;
+        self.direct_temp = None;
     }
 
     fn out(&self, text: String) -> String {
@@ -343,7 +358,7 @@ impl KeyHandler {
                     if released {
                         return HandleResult { handled: true, ..Default::default() };
                     }
-                    let commit = self.set_direct_mode(!self.direct_mode);
+                    let commit = self.toggle_direct_temp();
                     return HandleResult {
                         handled: true,
                         commit: if commit.is_empty() { None } else { Some(commit) },

@@ -63,7 +63,7 @@ Khoá cấu hình (`~/.config/ibus-vikey/config.json`): `method` (telex|vni|both
 `toggle_key` (ctrl_shift|alt_z|custom|none), `toggle_custom`
 (`"<Control><Shift>space"`…), `charset` (precomposed|decomposed), `enabled`,
 `spell_check`, `modern_tone`, `free_marking`, `macros`, `macros_when_off`,
-`direct_mode`, `direct_key` (accelerator, rỗng = tắt).
+`direct_mode`, `direct_key` (accelerator, rỗng = tắt), `debug_log`.
 Đổi cấu hình có hiệu lực khi focus vào ô nhập tiếp theo, không cần khởi động lại.
 
 ## Ô nhập contenteditable có tô màu cú pháp (Adminer…)
@@ -92,6 +92,22 @@ vậy đừng chọn tổ hợp đang cần dùng.
 
 Trong cửa sổ Cài đặt: thẻ *Tuỳ chọn* → *Nâng cao* → nút cạnh công tắc "Không
 gạch chân" (Backspace trong hộp thoại để bỏ phím tắt).
+
+Phím tắt chỉ đổi chế độ cho **ô nhập đang focus**, không ghi vào `config.json` và
+tự quên khi chuyển cửa sổ. Bật cho Adminer xong nhảy sang terminal là terminal đã
+trở lại lối gõ có gạch chân, không phải bấm tắt. Công tắc trong menu Vi/En và cửa
+sổ Cài đặt vẫn là tuỳ chọn lâu dài cho mọi ứng dụng; bấm vào đó sẽ bỏ đặt tạm.
+
+### Nhật ký chẩn đoán
+
+```bash
+vikey --config debug_log on
+tail -f ~/.cache/ibus-vikey/vikey.log
+```
+
+Ghi `focus_in` / `focus_out`, cờ khả năng của ô nhập (`caps=`, trong đó
+`preedit=` và `surrounding=`) và `content_type`. Dùng để xem IBus mô tả từng ứng
+dụng ra sao. Nhớ `debug_log off` khi xong.
 
 Ngoài ra engine đọc cờ `IBUS_CAP_PREEDIT_TEXT`: client nào không khai báo hỗ trợ
 preedit thì tự dùng lối gõ trực tiếp, không ghi đè tuỳ chọn trong `config.json`.

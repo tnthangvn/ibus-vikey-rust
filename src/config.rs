@@ -18,6 +18,7 @@ pub struct Config {
     pub macros: bool,
     pub macros_when_off: bool,
     pub direct_mode: bool,
+    pub debug_log: bool,
 }
 
 impl Default for Config {
@@ -35,6 +36,7 @@ impl Default for Config {
             macros: true,
             macros_when_off: false,
             direct_mode: false,
+            debug_log: false,
         }
     }
 }
@@ -42,9 +44,9 @@ impl Default for Config {
 pub const METHODS: [&str; 3] = ["telex", "vni", "both"];
 pub const TOGGLE_KEYS: [&str; 4] = ["ctrl_shift", "alt_z", "custom", "none"];
 pub const CHARSETS: [&str; 2] = ["precomposed", "decomposed"];
-pub const BOOL_KEYS: [&str; 7] = [
+pub const BOOL_KEYS: [&str; 8] = [
     "enabled", "spell_check", "modern_tone", "free_marking", "macros", "macros_when_off",
-    "direct_mode",
+    "direct_mode", "debug_log",
 ];
 
 pub fn config_dir() -> PathBuf {
@@ -112,6 +114,7 @@ pub fn load() -> Config {
         macros: boolean(o.get("macros"), d.macros),
         macros_when_off: boolean(o.get("macros_when_off"), d.macros_when_off),
         direct_mode: boolean(o.get("direct_mode"), d.direct_mode),
+        debug_log: boolean(o.get("debug_log"), d.debug_log),
     };
     // tương thích bản cũ: ctrl_shift_toggle (bool) -> toggle_key
     if !o.contains_key("toggle_key") {
@@ -136,6 +139,7 @@ pub fn save(cfg: &Config) -> std::io::Result<()> {
     m.insert("macros".into(), json!(cfg.macros));
     m.insert("macros_when_off".into(), json!(cfg.macros_when_off));
     m.insert("direct_mode".into(), json!(cfg.direct_mode));
+    m.insert("debug_log".into(), json!(cfg.debug_log));
     std::fs::create_dir_all(config_dir())?;
     let mut s = serde_json::to_string_pretty(&Value::Object(m)).unwrap();
     s.push('\n');
@@ -153,4 +157,31 @@ pub fn toggle_label(cfg: &Config) -> String {
         "none" => "Không dùng".into(),
         _ => crate::hotkey::label(&cfg.toggle_custom),
     }
+}
+
+/// Ghi một dòng vào ~/.cache/ibus-vikey/vikey.log (chỉ khi bật `debug_log`).
+/// Dùng để xem IBus báo gì cho từng ô nhập: khả năng, kiểu nội dung, focus.
+pub fn log_line(line: &str) {
+    use std::io::Write;
+    let base = std::env::var("XDG_CACHE_HOME").ok().filter(|s| !s.is_empty()).map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+            PathBuf::from(home).join(".cache")
+        });
+    let dir = base.join("ibus-vikey");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("vikey.log")) {
+        let _ = writeln!(f, "{}", line);
+    }
+}
+
+pub fn log_path() -> PathBuf {
+    let base = std::env::var("XDG_CACHE_HOME").ok().filter(|s| !s.is_empty()).map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+            PathBuf::from(home).join(".cache")
+        });
+    base.join("ibus-vikey").join("vikey.log")
 }

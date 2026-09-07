@@ -48,6 +48,8 @@ DEFAULTS = {
     # --- Nâng cao
     # Gõ trực tiếp, KHÔNG gạch chân (không dùng preedit). Trong terminal có thể lặp chữ.
     "direct_mode": False,
+    # Ghi nhật ký chẩn đoán vào ~/.cache/ibus-vikey/vikey.log
+    "debug_log": False,
 }
 
 BOOL_KEYS = tuple(k for k, v in DEFAULTS.items() if isinstance(v, bool))

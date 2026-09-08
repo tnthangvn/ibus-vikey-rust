@@ -356,6 +356,7 @@ impl EngineService {
     }
 
     async fn reset(&mut self) {
+        self.log("reset");
         self.handler.clear();
         self.preedit_visible = false;
     }

@@ -53,7 +53,7 @@ fn cmd_config(args: &[String]) -> i32 {
             ("macros", onoff(cfg.macros), ""),
             ("macros_when_off", onoff(cfg.macros_when_off), ""),
             ("direct_mode", onoff(cfg.direct_mode), "bỏ preedit ở mọi ô nhập"),
-            ("auto_direct", onoff(cfg.auto_direct), "thử tự chọn lối gõ theo caps (thử nghiệm)"),
+            ("auto_direct", onoff(cfg.auto_direct), "gõ trực tiếp ở ô có surrounding, trừ terminal VTE"),
             ("debug_log", onoff(cfg.debug_log), "ghi nhật ký chẩn đoán"),
         ];
         for (k, v, extra) in rows {

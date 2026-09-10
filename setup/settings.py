@@ -57,9 +57,10 @@ SECTIONS = [
     ]),
     ("Nâng cao", [
         ("switch", "auto_direct", "Thử tự chọn lối gõ theo ô nhập (thử nghiệm)",
-         "Dùng cờ khả năng IBus để đoán ô nhập nào nên gõ trực tiếp. Cờ này không ổn định – "
-         "nó đổi ngay trong một lần focus – nên kết quả thất thường. Bật thì công tắc bên dưới "
-         "mất tác dụng ở những ô bị đoán là cần gõ trực tiếp. Nên để tắt."),
+         "Gõ trực tiếp ở ô có SURROUNDING_TEXT (Chrome, ô GTK…), trừ ô khai báo là terminal "
+         "(VTE: gnome-terminal, Console, Ptyxis). Chữa lỗi Chrome autofill / click chuột "
+         "commit lại chữ đang gõ dở. Bật thì công tắc bên dưới mất tác dụng ở những ô được "
+         "chọn gõ trực tiếp. Terminal không phải VTE (kitty, alacritty) có thể bị đoán sai."),
         ("switch", "direct_mode", "Không gạch chân (gõ trực tiếp)",
          "Bỏ preedit ở mọi ô nhập. Cần bật khi gõ vào ô contenteditable của trang web "
          "(Adminer, editor web): ở đó preedit bị script tô màu của trang phá, sinh chữ thừa. "

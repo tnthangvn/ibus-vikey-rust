@@ -101,14 +101,48 @@ từ chối và nói tổ hợp đó đang dùng cho việc gì. Danh sách ở 
 IBus không có cờ nào nói "ô này là contenteditable". Thứ gần nhất là cờ khả năng
 (`SetCapabilities`), nhưng đo thật trên GNOME Wayland thì nó **đổi ngay giữa một
 lần focus** – cùng một cửa sổ lúc báo `0x09` (không có `SURROUNDING_TEXT`) lúc
-báo `0x29` (có). Nó mô tả từng ô nhập ở từng thời điểm, không phải ứng dụng.
+báo `0x29` (có). Lý do: gnome-shell chỉ thêm `SURROUNDING_TEXT` sau khi app đã
+gửi surrounding text, và nó thêm cho **mọi** app – terminal cũng báo `0x29` như
+Chrome, dù VTE không xoá được chữ qua `DeleteSurroundingText`.
 
 Trên Wayland cũng không lấy được cửa sổ đang focus: `org.gnome.Shell.Introspect`
 trả `AccessDenied`, `org.gnome.Shell.Eval` bị tắt, `xprop` chỉ thấy cửa sổ
 XWayland, và mọi app Wayland đều đi qua cùng một IBus client của gnome-shell.
 
-`auto_direct` là cơ chế đoán theo cờ đó, **mặc định tắt** vì kết quả thất thường.
-Bật lên thì ô nào bị đoán là cần gõ trực tiếp sẽ bỏ qua công tắc `direct_mode`.
+Dấu hiệu dùng được là **loại ô nhập** (`ContentType` purpose): VTE (gnome-terminal,
+Console, Ptyxis…) khai báo `GTK_INPUT_PURPOSE_TERMINAL`, ibus-gtk lẫn gnome-shell
+đều chuyển tiếp thành `IBUS_INPUT_PURPOSE_TERMINAL` cho engine. `auto_direct`
+gõ trực tiếp ở ô có `SURROUNDING_TEXT` **trừ** ô purpose TERMINAL. Terminal không
+phải VTE (kitty, alacritty…) không khai báo purpose nên vẫn có thể bị đoán sai;
+khi đó dùng `direct_key` hoặc tắt `auto_direct`.
+
+`auto_direct` **mặc định tắt**; bật lên thì ô nào bị đoán là cần gõ trực tiếp sẽ
+bỏ qua công tắc `direct_mode` (mục trong menu ghi rõ "[ô này: tự động]").
+
+**Không phân biệt được terminal chạy trong Chromium/Electron** (xterm.js: terminal
+tích hợp của VS Code, ứng dụng Claude…). Đo thật: nó báo `caps=0x29 purpose=0`
+y hệt ô email của Chrome, `DeleteSurroundingText` không có tác dụng (xterm.js
+xoá textarea sau mỗi lần nhập) nên gõ trực tiếp ra `teẻ` thay vì `tẻ`. Với
+người dùng terminal loại này, bật `auto_direct` là đổi lỗi Chrome lấy lỗi
+terminal; nên để tắt và xử lý ô Chrome bằng tay (xem mục dưới).
+
+### Chrome autofill / click chuột khi đang gõ dở
+
+Gõ `org` vào ô email của Chrome, bấm gợi ý `organizer@rongviet.com` → ra
+`organizer@rongviet.comorg`. Không phải lỗi engine: chữ `org` mới chỉ nằm trong
+preedit; Chrome điền giá trị rồi gửi reset, mutter (`clutter_input_focus_reset`)
+thấy preedit mode COMMIT nên **tự commit `org`** vào con trỏ trước cả khi engine
+nhận `Reset`. Cùng cơ chế làm lặp chữ khi click chuột giữa từ trong Chrome trên
+Wayland. Engine không chặn được ở lối preedit (đổi sang mode CLEAR thì mất chữ
+khi đổi cửa sổ, vì mutter bỏ focus trước khi engine kịp commit).
+
+Cách chữa: không để preedit tồn tại lúc bấm gợi ý.
+
+* Nhanh nhất: bấm **mũi tên phải** (hoặc End) trước khi bấm gợi ý – engine chốt
+  từ dở và nuốt phím, ô nhập không đổi, rồi gợi ý điền đè lên bình thường.
+* Hoặc bấm `direct_key` để ô đó gõ trực tiếp (không preedit) trong lần focus này.
+* Hoặc bật `auto_direct` nếu bạn không dùng terminal kiểu xterm.js (VS Code,
+  Claude…): ô Chrome gõ trực tiếp, terminal VTE vẫn giữ preedit.
 
 ### Nhật ký chẩn đoán
 
@@ -121,7 +155,8 @@ cat ~/.cache/ibus-vikey/vikey.log
 vikey --config debug_log off    # nhớ tắt khi xong
 ```
 
-Mỗi dòng có `caps=`, `MODE=direct|preedit`, `surrounding=`, kèm từng phím và việc
+Mỗi dòng có `caps=`, `purpose=` (10 = TERMINAL), `MODE=direct|preedit`,
+`surrounding=`, kèm từng phím và việc
 engine làm (`commit=`, `delete … via DeleteSurroundingText` hay
 `via ForwardKeyEvent(BackSpace)`). `--log-mark` chèn mốc để phân đoạn theo ứng
 dụng – không có mốc thì mấy dòng `focus_in` không cho biết đang ở cửa sổ nào.

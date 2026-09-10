@@ -20,6 +20,8 @@ pub struct EngineService {
     cfg: Config,
     cfg_mtime: Option<SystemTime>,
     preedit_visible: bool,
+    /// (purpose, hints) daemon Set gần nhất qua thuộc tính ContentType.
+    content_type: (u32, u32),
 }
 
 fn icon_dir() -> String {
@@ -37,6 +39,7 @@ impl EngineService {
             cfg,
             cfg_mtime: config::mtime(),
             preedit_visible: false,
+            content_type: (0, 0),
         }
     }
 
@@ -96,9 +99,10 @@ impl EngineService {
         if self.cfg.debug_log {
             let h = &self.handler;
             config::log_line(&format!(
-                "[{} caps=0x{:02x} {} surrounding={} auto_direct={}] {}",
+                "[{} caps=0x{:02x} purpose={} {} surrounding={} auto_direct={}] {}",
                 env!("CARGO_PKG_VERSION"),
                 h.client_caps(),
+                h.client_purpose(),
                 if h.use_direct() { "MODE=direct" } else { "MODE=preedit" },
                 h.client_has_surrounding(),
                 h.auto_direct,
@@ -232,7 +236,7 @@ impl EngineService {
             (
                 "auto_direct",
                 "Tự chọn lối gõ theo ô nhập (thử nghiệm)",
-                "Đoán theo cờ khả năng IBus. Cờ này đổi ngay giữa một lần focus nên kết quả thất thường; bật thì công tắc dưới bị ghi đè ở những ô bị đoán là cần gõ trực tiếp. Nên để tắt",
+                "Gõ trực tiếp ở ô có SURROUNDING_TEXT (Chrome, ô GTK…), trừ ô khai báo là terminal (VTE). Chữa Chrome autofill / click chuột commit lại chữ dở. Bật thì công tắc dưới bị ghi đè ở những ô được chọn gõ trực tiếp",
                 h.auto_direct,
             ),
             (
@@ -453,14 +457,20 @@ impl EngineService {
     async fn property_show(&mut self, _prop_name: String) {}
     async fn property_hide(&mut self, _prop_name: String) {}
 
-    /// Thuộc tính ContentType (daemon Set khi đổi loại ô nhập) - không cần xử lý.
+    /// Thuộc tính ContentType: daemon Set khi focus vào ô nhập và khi đổi loại
+    /// ô. Purpose TERMINAL (VTE) giữ preedit dù auto_direct đang bật.
     #[zbus(property)]
     async fn content_type(&self) -> (u32, u32) {
-        (0, 0)
+        self.content_type
     }
     #[zbus(property)]
     async fn set_content_type(&mut self, v: (u32, u32)) {
         self.log(&format!("content_type purpose={} hints=0x{:x}", v.0, v.1));
+        self.content_type = v;
+        let pending = self.handler.set_client_purpose(v.0);
+        if !pending.is_empty() {
+            self.apply_commit(Some(&pending), 0).await;
+        }
     }
 }
 

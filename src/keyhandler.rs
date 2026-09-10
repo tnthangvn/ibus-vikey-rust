@@ -34,6 +34,10 @@ pub const HYPER_MASK: u32 = hotkey::HYPER_MASK;
 pub const META_MASK: u32 = hotkey::META_MASK;
 pub const RELEASE_MASK: u32 = hotkey::RELEASE_MASK;
 
+/// IBusInputPurpose (ibustypes.h): loại ô nhập client khai báo qua `ContentType`.
+pub const PURPOSE_FREE_FORM: u32 = 0;
+pub const PURPOSE_TERMINAL: u32 = 10;
+
 const SHORTCUT_MASK: u32 = CONTROL_MASK | MOD1_MASK | MOD4_MASK | SUPER_MASK | HYPER_MASK | META_MASK;
 
 fn is_shift_key(v: u32) -> bool {
@@ -76,6 +80,13 @@ pub struct KeyHandler {
     /// Cờ mới nhận được khi đang gõ dở: hoãn lại, đổi lối gõ giữa từ sẽ làm mất
     /// dấu (IBus đổi caps ngay trong một lần focus, không chỉ khi đổi cửa sổ).
     pending_caps: Option<u32>,
+    /// Loại ô nhập (`ContentType` purpose) IBus báo. VTE khai báo TERMINAL, và
+    /// caps không phân biệt được terminal với trình duyệt (gnome-shell báo
+    /// SURROUNDING cho mọi app đã gửi surrounding text), nên purpose là dấu
+    /// hiệu duy nhất để auto_direct chừa terminal ra.
+    client_purpose: u32,
+    /// Purpose nhận khi đang gõ dở: hoãn như caps.
+    pending_purpose: Option<u32>,
     /// Ô nhập này phải gõ trực tiếp (không preedit)?
     client_direct: bool,
     /// Ô nhập này nhận `DeleteSurroundingText`? Chưa biết cờ thì coi như có.
@@ -111,6 +122,8 @@ impl KeyHandler {
             direct_mode: cfg.direct_mode,
             client_caps: 0,
             pending_caps: None,
+            client_purpose: PURPOSE_FREE_FORM,
+            pending_purpose: None,
             client_direct: false,
             client_surrounding: true,
             auto_direct: cfg.auto_direct,
@@ -221,19 +234,43 @@ impl KeyHandler {
         self.recompute_client_mode()
     }
 
+    /// IBus báo loại ô nhập đang focus (`ContentType` purpose, IBusInputPurpose).
+    /// Trả về chuỗi cần commit nếu buộc phải chốt từ đang dở.
+    pub fn set_client_purpose(&mut self, purpose: u32) -> String {
+        if !self.engine.is_empty() {
+            self.pending_purpose = Some(purpose);
+            return String::new();
+        }
+        self.client_purpose = purpose;
+        self.recompute_client_mode()
+    }
+
+    pub fn client_purpose(&self) -> u32 {
+        self.client_purpose
+    }
+
     /// Gọi sau khi xử lý xong một phím: từ vừa kết thúc thì áp cờ đã hoãn ngay,
     /// không phải chờ tới phím kế tiếp.
     pub fn settle(&mut self) {
         self.apply_pending_caps();
     }
 
-    /// Áp cờ đã hoãn, gọi khi không còn từ nào đang gõ dở.
+    /// Áp cờ / purpose đã hoãn, gọi khi không còn từ nào đang gõ dở.
     fn apply_pending_caps(&mut self) {
-        if self.engine.is_empty() {
-            if let Some(c) = self.pending_caps.take() {
-                self.client_caps = c;
-                self.recompute_client_mode();
-            }
+        if !self.engine.is_empty() {
+            return;
+        }
+        let mut changed = false;
+        if let Some(c) = self.pending_caps.take() {
+            self.client_caps = c;
+            changed = true;
+        }
+        if let Some(p) = self.pending_purpose.take() {
+            self.client_purpose = p;
+            changed = true;
+        }
+        if changed {
+            self.recompute_client_mode();
         }
     }
 
@@ -249,6 +286,10 @@ impl KeyHandler {
     ///   preedit dồn lại thành chữ thừa.
     /// - Thiếu `SURROUNDING_TEXT`: terminal VTE. Ở đó preedit chạy tốt, còn gõ
     ///   trực tiếp thì không xoá được ký tự nên phải giữ preedit.
+    /// - Purpose TERMINAL: VTE (gnome-terminal, Console, Ptyxis…) khai báo rõ
+    ///   là terminal. Qua gnome-shell hay ibus-gtk nó vẫn có thể báo có
+    ///   SURROUNDING_TEXT nhưng không xoá được, nên không bao giờ gõ trực tiếp
+    ///   vì auto_direct ở đó.
     fn recompute_client_mode(&mut self) -> String {
         const CAP_PREEDIT_TEXT: u32 = 1 << 0;
         const CAP_SURROUNDING_TEXT: u32 = 1 << 5;
@@ -258,7 +299,8 @@ impl KeyHandler {
         }
         let no_preedit = caps & CAP_PREEDIT_TEXT == 0;
         let surrounding = caps & CAP_SURROUNDING_TEXT != 0;
-        let direct = no_preedit || (self.auto_direct && surrounding);
+        let terminal = self.client_purpose == PURPOSE_TERMINAL;
+        let direct = no_preedit || (self.auto_direct && surrounding && !terminal);
         if direct == self.client_direct && surrounding == self.client_surrounding {
             return String::new();
         }
@@ -307,8 +349,16 @@ impl KeyHandler {
         self.shadow.clear();
         self.last_boundary = None;
         self.direct_temp = None;
+        let mut changed = false;
         if let Some(c) = self.pending_caps.take() {
             self.client_caps = c;
+            changed = true;
+        }
+        if let Some(p) = self.pending_purpose.take() {
+            self.client_purpose = p;
+            changed = true;
+        }
+        if changed {
             self.recompute_client_mode();
         }
     }

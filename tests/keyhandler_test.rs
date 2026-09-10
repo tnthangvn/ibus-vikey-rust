@@ -453,6 +453,7 @@ fn direct_key_unset_passes_shortcut_through() {
 /// nên giữ preedit.
 const CAPS_BROWSER: u32 = 0x29;
 const CAPS_TERMINAL: u32 = 0x09;
+const PURPOSE_EMAIL: u32 = 6;
 
 #[test]
 fn auto_direct_in_browser_preedit_in_terminal() {
@@ -570,4 +571,58 @@ fn menu_direct_toggle_tracks_its_own_setting() {
     assert!(app.h.direct_is_temp());
     assert!(!app.h.use_direct(), "phím tắt phải ghi đè được auto_direct");
     assert!(!app.h.direct_mode);
+}
+
+/// gnome-shell báo SURROUNDING_TEXT cho mọi app đã gửi surrounding text, nên caps
+/// của gnome-terminal có thể giống hệt Chrome (0x29). VTE khai báo purpose
+/// TERMINAL qua ContentType: auto_direct phải chừa ô đó ra, nếu không terminal
+/// lặp chữ vì không nhận DeleteSurroundingText.
+#[test]
+fn terminal_purpose_keeps_preedit_despite_surrounding_caps() {
+    let mut app = FakeApp::new(|c| c.auto_direct = true);
+    app.h.set_client_caps(CAPS_BROWSER);
+    assert!(app.h.use_direct(), "ô thường có surrounding -> gõ trực tiếp");
+
+    app.h.set_client_purpose(PURPOSE_TERMINAL);
+    assert!(!app.h.use_direct(), "terminal phải giữ preedit");
+    app.type_str("chaof");
+    assert_eq!(app.preedit, "chào");
+    app.type_str(" ");
+    assert_eq!(app.text, "chào ");
+
+    // sang ô email của Chrome: purpose EMAIL, lại gõ trực tiếp
+    app.h.clear();
+    app.h.set_client_purpose(PURPOSE_EMAIL);
+    assert!(app.h.use_direct());
+    app.type_str("org");
+    assert_eq!(app.preedit, "", "không còn preedit để IBus commit lại khi Chrome autofill");
+    assert_eq!(app.text, "chào org");
+}
+
+/// Purpose tới giữa từ (daemon Set ContentType ngay sau focus) cũng phải hoãn
+/// như caps, không được reset engine làm mất dấu.
+#[test]
+fn purpose_change_midword_does_not_break_the_word() {
+    let mut app = FakeApp::new(|c| c.auto_direct = true);
+    app.h.set_client_caps(CAPS_BROWSER);
+    app.h.set_client_purpose(PURPOSE_TERMINAL);
+    assert!(!app.h.use_direct());
+
+    app.type_str("tieen");
+    app.h.set_client_purpose(PURPOSE_FREE_FORM);
+    assert!(!app.h.use_direct(), "chưa được đổi lối gõ khi còn từ dở");
+    app.type_str("gs ");
+    assert_eq!(app.text, "tiếng ");
+    assert!(app.h.use_direct(), "hết từ mới áp purpose mới");
+}
+
+/// Tắt auto_direct thì purpose không có tác dụng gì (chỉ cấu hình/phím tắt quyết định).
+#[test]
+fn purpose_ignored_when_auto_direct_off() {
+    let mut app = FakeApp::new(|c| c.auto_direct = false);
+    app.h.set_client_caps(CAPS_BROWSER);
+    app.h.set_client_purpose(PURPOSE_EMAIL);
+    assert!(!app.h.use_direct());
+    app.h.set_client_purpose(PURPOSE_TERMINAL);
+    assert!(!app.h.use_direct());
 }
